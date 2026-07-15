@@ -1,0 +1,6 @@
+node-*/
+dicom-viewer/frontend/node_modules/
+dicom-viewer/backend/vendor/
+.gemini/
+dicom-viewer/backend/.env
+temp_ohif/
