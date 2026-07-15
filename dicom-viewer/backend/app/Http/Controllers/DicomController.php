@@ -106,8 +106,8 @@ class DicomController extends Controller
         return response()->json([
             'studies' => [[
                 'StudyInstanceUID' => '1.2.3.4.5.' . $cleanUuid,
-                'StudyDate' => '',
-                'StudyTime' => '',
+                'StudyDate' => date('Ymd'),
+                'StudyTime' => date('His'),
                 'PatientName' => $patient->name,
                 'PatientID' => $patient->medical_record_number,
                 'AccessionNumber' => '',
@@ -117,6 +117,8 @@ class DicomController extends Controller
                     'SeriesInstanceUID' => '1.2.3.4.5.6.' . $cleanUuid,
                     'SeriesNumber' => 1,
                     'Modality' => 'OT',
+                    'SeriesDate' => date('Ymd'),
+                    'SeriesTime' => date('His'),
                     'instances' => [[
                         'metadata' => [
                             'Columns' => $cols,
