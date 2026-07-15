@@ -4,7 +4,7 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useAppContext } from '../context/AppContext';
 import OHIFViewerComponent from '../components/OHIFViewerComponent';
-import { CheckCircle, AlertCircle, Save, FileText, ChevronUp, ChevronDown, Sparkles, X, Activity, Download } from 'lucide-react';
+import { CheckCircle, AlertCircle, Save, FileText, ChevronUp, ChevronDown, Sparkles, X, Activity, Download, Maximize, Minimize } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import html2pdf from 'html2pdf.js';
 import PdfTemplate from '../components/PdfTemplate';
@@ -26,6 +26,10 @@ export default function Viewer() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [capturedImage, setCapturedImage] = useState(null);
   const pdfRef = useRef();
+
+  // Fullscreen State
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const viewerContainerRef = useRef(null);
 
   // AI States
   const [aiLoading, setAiLoading] = useState(false);
@@ -52,6 +56,24 @@ export default function Viewer() {
       fetchReport();
     }
   }, [uuid]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      viewerContainerRef.current?.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
 
   const getCanvasImage = () => {
     try {
@@ -136,9 +158,20 @@ export default function Viewer() {
       {/* Viewer Main Area */}
       <div className="flex-1 flex flex-col h-[50vh] md:h-full relative z-10 border-b md:border-b-0 md:border-r border-white/10">
         
-        <div className="flex-1 bg-black flex items-center justify-center overflow-hidden relative">
+        <div ref={viewerContainerRef} className="flex-1 bg-black flex items-center justify-center overflow-hidden relative group">
           {uuid ? (
-            <OHIFViewerComponent uuid={uuid} />
+            <>
+              <OHIFViewerComponent uuid={uuid} />
+              
+              {/* Fullscreen Toggle Button */}
+              <button 
+                onClick={toggleFullscreen}
+                className="absolute top-4 right-4 z-[9999] p-2 bg-black/60 hover:bg-[#00e5ff]/20 text-[#888] hover:text-[#00e5ff] rounded-lg backdrop-blur-md transition-all opacity-50 hover:opacity-100 group-hover:opacity-100 border border-white/10 hover:border-[#00e5ff]/50 shadow-lg flex items-center justify-center"
+                title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+              >
+                {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+              </button>
+            </>
           ) : (
             <div className="text-center p-6 bg-[#111] border border-[#333] rounded-2xl max-w-sm shadow-2xl">
               <div className="w-16 h-16 bg-[#00e5ff]/10 rounded-full flex items-center justify-center mx-auto mb-4">
