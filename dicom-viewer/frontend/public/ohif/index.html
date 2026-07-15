@@ -20,19 +20,41 @@
       overflow-x: hidden !important;
       width: 100vw;
     }
-    /* Make OHIF Toolbar wrap on mobile to fit all buttons without clipping dropdowns */
+    /* Make OHIF Toolbar horizontally scrollable on mobile without clipping dropdowns */
     @media (max-width: 768px) {
       .ToolbarRow, .toolbarRow, .toolbar-row {
-        flex-wrap: wrap !important;
-        height: auto !important;
-        min-height: 50px;
+        overflow-x: auto !important;
+        overflow-y: hidden !important; /* Hidden is required for x-scrolling */
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100vw;
+        
+        /* CSS Hack to allow dropdowns to render outside the visual bounds without clipping */
+        padding-bottom: 350px !important; 
+        margin-bottom: -350px !important; 
+        pointer-events: none !important;
+        z-index: 9999 !important;
+        align-items: flex-start !important;
+      }
+      
+      .ToolbarRow > *, .toolbarRow > *, .toolbar-row > * {
+        pointer-events: auto !important;
+        flex-shrink: 0 !important;
+      }
+
+      /* Hide scrollbar for a cleaner look */
+      .ToolbarRow::-webkit-scrollbar, .toolbarRow::-webkit-scrollbar, .toolbar-row::-webkit-scrollbar {
+        display: none;
       }
     }
     
-    /* Ensure toolbar dropdowns are not clipped on any device */
-    .ToolbarRow, .toolbarRow, .toolbar-row {
-      overflow: visible !important;
-      z-index: 9999 !important;
+    /* Ensure toolbar dropdowns are not clipped on desktop */
+    @media (min-width: 769px) {
+      .ToolbarRow, .toolbarRow, .toolbar-row {
+        overflow: visible !important;
+        z-index: 9999 !important;
+      }
     }
 
     /* Hide everything above the DICOM Viewer Menu (Toolbar) */
