@@ -21,19 +21,27 @@
       width: 100vw;
     }
     /* Make OHIF Toolbar horizontally scrollable on mobile */
-    .ToolbarRow, .toolbarRow, .toolbar-row {
-      overflow-x: auto !important;
-      overflow-y: hidden !important;
-      display: flex !important;
-      flex-wrap: nowrap !important;
-      -webkit-overflow-scrolling: touch;
-      max-width: 100vw;
-      /* Optional padding so the last item isn't cut off */
-      padding-right: 15px; 
+    @media (max-width: 768px) {
+      .ToolbarRow, .toolbarRow, .toolbar-row {
+        overflow-x: auto !important;
+        overflow-y: visible !important;
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100vw;
+        /* Optional padding so the last item isn't cut off */
+        padding-right: 15px; 
+      }
+      /* Hide scrollbar for a cleaner look */
+      .ToolbarRow::-webkit-scrollbar, .toolbarRow::-webkit-scrollbar, .toolbar-row::-webkit-scrollbar {
+        display: none;
+      }
     }
-    /* Hide scrollbar for a cleaner look */
-    .ToolbarRow::-webkit-scrollbar, .toolbarRow::-webkit-scrollbar, .toolbar-row::-webkit-scrollbar {
-      display: none;
+    
+    /* Ensure toolbar dropdowns are not clipped */
+    .ToolbarRow, .toolbarRow, .toolbar-row {
+      overflow: visible !important;
+      z-index: 9999 !important;
     }
 
     /* Hide everything above the DICOM Viewer Menu (Toolbar) */
