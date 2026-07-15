@@ -44,6 +44,37 @@
     .research-use {
       display: none !important;
     }
+
+    /* Hide the left Series panel and right Measurement panel */
+    .sidepanel,
+    .pull-right,
+    .pull-left,
+    .scrollable-study-thumbnails,
+    .measurement-table,
+    .left-sidebar,
+    .right-sidebar {
+      display: none !important;
+    }
+
+    /* Hide the top-right overlay that says "Invalid date Invalid date" */
+    .viewport-overlay,
+    .ViewportOverlay,
+    .top-right,
+    .bottom-right,
+    .top-left,
+    .bottom-left,
+    .cornerstone-text,
+    .viewportOverlay {
+      display: none !important;
+    }
+
+    /* Make sure the viewer container expands to fill the entire space */
+    .ViewerMain {
+      width: 100% !important;
+      height: 100% !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
   </style>
 </head>
 
@@ -58,6 +89,41 @@
     var containerId = 'root';
     var componentRenderedOrUpdatedCallback = function () {
       console.log('OHIF Viewer rendered/updated');
+      
+      // Attempt to hide side panels by simulating clicks on active toolbar buttons, 
+      // and trigger resize so the canvas fills the space.
+      var adjustUI = function() {
+        try {
+          // Hide text overlays
+          var overlays = document.querySelectorAll('.viewport-overlay, .ViewportOverlay');
+          overlays.forEach(function(el) { el.style.display = 'none'; });
+
+          // Find and click the 'Series' and 'Measurements' toggle buttons if they are active
+          var activeButtons = document.querySelectorAll('.toolbar-button.active, .ToolbarButton.active');
+          activeButtons.forEach(function(btn) {
+             btn.click();
+          });
+
+          // Hide the Series and Measurement buttons from the toolbar
+          var allButtons = document.querySelectorAll('button, .toolbar-button, .ToolbarButton, [class*="button"]');
+          allButtons.forEach(function(btn) {
+             var text = (btn.innerText || '').toLowerCase();
+             if (text.includes('series') || text.includes('measurement') || text.includes('measure')) {
+                 btn.style.display = 'none';
+             }
+          });
+          
+          // Trigger a window resize to force cornerstone to redraw and fill the new space
+          window.dispatchEvent(new Event('resize'));
+        } catch (e) {
+          console.log('Error adjusting UI', e);
+        }
+      };
+
+      // Run multiple times to catch dynamic rendering
+      setTimeout(adjustUI, 500);
+      setTimeout(adjustUI, 1500);
+      setTimeout(adjustUI, 3000);
     };
     window.OHIFViewer.installViewer(
       window.config, // See `/config/default.js`
