@@ -11,7 +11,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   // Configure Axios defaults
-  axios.defaults.baseURL = 'http://localhost:8000/api';
+  axios.defaults.baseURL = '/api';
   
   if (token) {
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;

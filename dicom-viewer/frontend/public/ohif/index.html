@@ -126,6 +126,21 @@
              if (text.includes('series') || text.includes('measurement') || text.includes('measure')) {
                  btn.style.display = 'none';
              }
+             
+             // PATCH: The Reset button restores the viewport to its original state (when side panels were open).
+             // This makes the image tiny. By dispatching a resize event right after, Cornerstone will auto-fit 
+             // the image to the new full-screen container size properly.
+             if (text.includes('reset') && !btn.dataset.resetPatched) {
+                 btn.dataset.resetPatched = 'true';
+                 btn.addEventListener('click', function() {
+                     setTimeout(function() {
+                         window.dispatchEvent(new Event('resize'));
+                     }, 50);
+                     setTimeout(function() {
+                         window.dispatchEvent(new Event('resize'));
+                     }, 150);
+                 });
+             }
           });
           
           // Trigger a window resize to force cornerstone to redraw and fill the new space

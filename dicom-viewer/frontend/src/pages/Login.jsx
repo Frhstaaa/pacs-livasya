@@ -39,7 +39,7 @@ export default function Login() {
           <div className="w-16 h-16 bg-gradient-to-br from-[#00e5ff]/20 to-[#0077ff]/20 rounded-2xl flex items-center justify-center mb-4 border border-white/5 shadow-[0_0_20px_rgba(0,229,255,0.2)]">
             <Stethoscope className="w-8 h-8 text-[#00e5ff]" />
           </div>
-          <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-[#aaa] tracking-tight text-center">DICOM PACS</h2>
+          <h2 className="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-[#aaa] tracking-tight text-center">DICOM PACS</h2>
           <p className="text-[#888] text-sm mt-2 text-center font-medium">Radiology Information System</p>
         </div>
         

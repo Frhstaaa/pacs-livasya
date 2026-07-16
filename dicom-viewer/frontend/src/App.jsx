@@ -42,7 +42,7 @@ function Layout({ children }) {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-screen w-screen overflow-hidden bg-[#050505] text-gray-200 font-sans selection:bg-[#00e5ff]/30">
+    <div className="flex flex-col md:flex-row h-[100dvh] w-screen overflow-hidden bg-[#050505] text-gray-200 font-sans selection:bg-[#00e5ff]/30">
       
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 flex-col border-r border-white/10 bg-[#0a0a0a]/80 backdrop-blur-xl z-50 shadow-2xl">
@@ -91,6 +91,27 @@ function Layout({ children }) {
           </button>
         </div>
       </aside>
+
+      {/* Mobile Top Navbar */}
+      <header className="md:hidden flex items-center justify-between px-4 h-16 shrink-0 bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-white/10 z-40 shadow-lg relative">
+        <div className="flex items-center">
+          {appLogo ? (
+            <img src={appLogo} alt="App Logo" className="h-8 w-auto rounded object-contain drop-shadow-[0_0_8px_rgba(0,229,255,0.5)]" />
+          ) : (
+            <div className="bg-gradient-to-br from-[#00e5ff] to-[#0077ff] p-1.5 rounded-lg shadow-[0_0_10px_rgba(0,229,255,0.4)]">
+              <Stethoscope className="w-5 h-5 text-white" />
+            </div>
+          )}
+          <span className="ml-2.5 font-extrabold text-lg text-transparent bg-clip-text bg-gradient-to-r from-white to-[#aaa] tracking-tight">{appName}</span>
+        </div>
+        
+        <div className="flex items-center gap-2 bg-white/5 pr-3 pl-1.5 py-1.5 rounded-full border border-white/10 shadow-inner">
+          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#00e5ff] to-blue-500 flex items-center justify-center text-white font-bold text-xs shadow-[0_0_10px_rgba(0,229,255,0.3)]">
+            {user?.name?.charAt(0).toUpperCase()}
+          </div>
+          <div className="text-xs font-bold text-white max-w-[80px] truncate tracking-wide">{user?.name}</div>
+        </div>
+      </header>
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col overflow-hidden relative pb-16 md:pb-0 z-0">

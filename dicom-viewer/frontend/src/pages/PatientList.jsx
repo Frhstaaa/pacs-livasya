@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useAppContext } from '../context/AppContext';
-import { Users, FileText, Monitor, ChevronRight, Activity, Calendar, Search, Filter, SearchX, Download } from 'lucide-react';
+import { Users, FileText, Monitor, ChevronRight, Activity, Calendar, Search, Filter, SearchX, Download, Server } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import PdfTemplate from '../components/PdfTemplate';
+import RouterImportModal from '../components/RouterImportModal';
 
 export default function PatientList() {
   const navigate = useNavigate();
@@ -26,17 +27,21 @@ export default function PatientList() {
   const [pdfData, setPdfData] = useState(null);
   const pdfRef = useRef(null);
 
+  const [showRouterModal, setShowRouterModal] = useState(false);
+
+  const fetchPatients = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get('/patients');
+      setPatients(response.data);
+    } catch (err) {
+      setError('Failed to fetch patients.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        const response = await axios.get('/patients');
-        setPatients(response.data);
-      } catch (err) {
-        setError('Failed to fetch patients.');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchPatients();
   }, []);
 
@@ -114,10 +119,17 @@ export default function PatientList() {
         />
       )}
 
+      {showRouterModal && (
+        <RouterImportModal 
+          onClose={() => setShowRouterModal(false)} 
+          onImportSuccess={fetchPatients} 
+        />
+      )}
+
       <div className="max-w-6xl mx-auto relative z-10">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white flex items-center">
+            <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center">
               <Users className="w-8 h-8 mr-3 text-[#00e5ff]" />
               Patient Worklist
             </h1>
@@ -125,12 +137,22 @@ export default function PatientList() {
           </div>
           
           {(user?.role === 'nurse' || user?.role === 'superadmin') && (
-            <button 
-              onClick={() => navigate('/upload')}
-              className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-[#00e5ff] to-[#0077ff] text-white rounded-xl text-sm font-bold shadow-[0_0_15px_rgba(0,229,255,0.3)] hover:opacity-90 transition-all flex justify-center items-center"
-            >
-              <FileText className="w-5 h-5 mr-2" /> Upload New DICOM
-            </button>
+            <div className="w-full md:w-auto flex flex-col md:flex-row gap-3">
+              {user?.role === 'superadmin' && (
+                <button 
+                  onClick={() => setShowRouterModal(true)}
+                  className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-[0_0_15px_rgba(168,85,247,0.3)] hover:opacity-90 transition-all flex justify-center items-center"
+                >
+                  <Server className="w-5 h-5 mr-2" /> Import from Router
+                </button>
+              )}
+              <button 
+                onClick={() => navigate('/upload')}
+                className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-[#00e5ff] to-[#0077ff] text-white rounded-xl text-sm font-bold shadow-[0_0_15px_rgba(0,229,255,0.3)] hover:opacity-90 transition-all flex justify-center items-center"
+              >
+                <FileText className="w-5 h-5 mr-2" /> Upload New DICOM
+              </button>
+            </div>
           )}
         </div>
 

@@ -136,7 +136,7 @@ export default function RouterIntegration() {
         
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold text-white flex items-center tracking-tight">
+            <h1 className="text-2xl md:text-3xl font-extrabold text-white flex items-center tracking-tight">
               <Server className="w-8 h-8 mr-3 text-[#00e5ff]" />
               DICOM Router
             </h1>
