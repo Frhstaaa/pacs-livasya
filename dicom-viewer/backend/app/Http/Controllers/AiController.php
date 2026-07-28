@@ -26,7 +26,7 @@ class AiController extends Controller
                 'HTTP-Referer' => 'http://localhost:5173',
                 'X-Title' => 'DICOM RIS System',
             ])->post('https://openrouter.ai/api/v1/chat/completions', [
-                'model' => 'openai/gpt-4o',
+                'model' => 'nvidia/nemotron-nano-12b-v2-vl:free',
                 'messages' => [
                     [
                         'role' => 'user',

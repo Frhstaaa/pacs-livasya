@@ -225,27 +225,32 @@ export default function PatientList() {
                   
                   return (
                     <tr key={patient.id} className="hover:bg-white/5 transition-colors group">
-                      <td className="p-5">
-                        <div className="text-white font-bold text-base">{patient.name}</div>
+                      <td className="p-5 align-middle">
+                        <div className="text-white font-bold text-base whitespace-nowrap">{patient.name}</div>
                       </td>
-                      <td className="p-5 font-mono text-sm text-[#00e5ff] bg-[#00e5ff]/5 px-3 py-1 rounded inline-block mt-4">{patient.medical_record_number}</td>
-                      <td className="p-5 text-[#aaa]">{patient.birth_date}</td>
-                      <td className="p-5">
+                      <td className="p-5 align-middle">
+                        <span className="font-mono text-sm text-[#00e5ff] bg-[#00e5ff]/10 px-3 py-1.5 rounded-md inline-block whitespace-nowrap">
+                          {patient.medical_record_number}
+                        </span>
+                      </td>
+                      <td className="p-5 text-[#aaa] align-middle">{patient.birth_date}</td>
+                      <td className="p-5 align-middle">
                         {!hasStudies ? (
-                          <span className="text-xs font-bold px-3 py-1 rounded-full border border-gray-600/30 text-gray-400 bg-gray-500/10">No Studies</span>
+                          <span className="text-xs font-bold px-3 py-1 rounded-full border border-gray-600/30 text-gray-400 bg-gray-500/10 whitespace-nowrap">No Studies</span>
                         ) : hasReport ? (
-                          <span className="text-xs font-bold px-3 py-1 rounded-full border border-emerald-500/30 text-emerald-400 bg-emerald-500/10">Completed</span>
+                          <span className="text-xs font-bold px-3 py-1 rounded-full border border-emerald-500/30 text-emerald-400 bg-emerald-500/10 whitespace-nowrap">Completed</span>
                         ) : (
-                          <span className="text-xs font-bold px-3 py-1 rounded-full border border-amber-500/30 text-amber-400 bg-amber-500/10">Pending Diagnosis</span>
+                          <span className="text-xs font-bold px-3 py-1 rounded-full border border-amber-500/30 text-amber-400 bg-amber-500/10 whitespace-nowrap">Pending Diagnosis</span>
                         )}
                       </td>
-                      <td className="p-5">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-white/10 text-white border border-white/10">
-                          <Activity className={`w-3 h-3 mr-1 ${hasStudies ? 'text-green-400' : 'text-[#666]'}`} />
+                      <td className="p-5 align-middle">
+                        <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-white/10 text-white border border-white/10 whitespace-nowrap">
+                          <Activity className={`w-3 h-3 mr-1.5 ${hasStudies ? 'text-[#00e5ff]' : 'text-[#666]'}`} />
                           {patient.dicom_files?.length || 0} Studies
                         </span>
                       </td>
-                      <td className="p-5 text-right flex justify-end gap-2 items-center h-full mt-2">
+                      <td className="p-5 text-right align-middle">
+                        <div className="flex justify-end gap-2 items-center">
                         {hasStudies ? (
                           <>
                             {hasReport && (
@@ -271,8 +276,9 @@ export default function PatientList() {
                             </button>
                           </>
                         ) : (
-                          <span className="text-xs font-medium text-[#666] uppercase tracking-wider bg-black/50 px-3 py-1 rounded border border-[#333]">No Data</span>
+                          <span className="text-xs font-medium text-[#666] uppercase tracking-wider bg-black/50 px-3 py-2 rounded-lg border border-[#333] whitespace-nowrap">No Data</span>
                         )}
+                        </div>
                       </td>
                     </tr>
                   )
