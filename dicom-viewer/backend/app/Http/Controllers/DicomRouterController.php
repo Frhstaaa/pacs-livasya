@@ -157,74 +157,11 @@ class DicomRouterController extends Controller
             return response()->json(['error' => 'File not found on router.'], 404);
         }
 
-        $content = file_get_contents($fullPath);
-        if (!$content) {
-            return response()->json(['error' => 'Failed to read file.'], 500);
-        }
+        // Run the job synchronously so it finishes before returning to the frontend
+        \App\Jobs\ImportDicomJob::dispatchSync($fullPath);
 
-        // Parse DICOM metadata
-        $patientName = $this->extractStringTag($content, 0x0010, 0x0010) ?: 'Unknown Patient';
-        $mrn = $this->extractStringTag($content, 0x0010, 0x0020) ?: 'UNKNOWN_MRN';
-        
-        $birthDateStr = $this->extractStringTag($content, 0x0010, 0x0030);
-        $birthDate = null;
-        if ($birthDateStr && strlen(trim($birthDateStr)) === 8) {
-            $b = trim($birthDateStr);
-            $birthDate = substr($b, 0, 4) . '-' . substr($b, 4, 2) . '-' . substr($b, 6, 2);
-        } else {
-            $birthDate = '1900-01-01'; // Default fallback
-        }
-
-        $patientName = str_replace('^', ' ', $patientName);
-        $patientName = trim($patientName);
-        $mrn = trim($mrn);
-
-        $patient = Patient::firstOrCreate(
-            ['medical_record_number' => $mrn],
-            ['name' => $patientName, 'birth_date' => $birthDate]
-        );
-
-        $uuid = Str::uuid()->toString();
-        $fileName = basename($fullPath);
-        
-        Storage::disk('dicom')->put($uuid . '.dcm', $content);
-
-        $dicomFile = DicomFile::create([
-            'patient_id' => $patient->id,
-            'uuid' => $uuid,
-            'file_name' => $fileName,
-            'file_path' => $uuid . '.dcm',
+        return response()->json([
+            'message' => 'Import successful',
         ]);
-
-        return response()->json(['message' => 'Import successful', 'dicom' => $dicomFile]);
-    }
-
-    private function extractStringTag($content, $tagGroup, $tagElement) {
-        $tagBytes = chr($tagGroup & 0xFF) . chr($tagGroup >> 8) . chr($tagElement & 0xFF) . chr($tagElement >> 8);
-        $pos = strpos($content, $tagBytes);
-        if ($pos !== false) {
-            $vr = substr($content, $pos + 4, 2);
-            $length = 0;
-            $valOffset = 0;
-            
-            if (in_array($vr, ['OB', 'OW', 'OF', 'SQ', 'UT', 'UN'])) {
-                $len = unpack('V', substr($content, $pos + 8, 4));
-                $length = $len[1];
-                $valOffset = 12;
-            } elseif (ctype_upper($vr)) {
-                $len = unpack('v', substr($content, $pos + 6, 2));
-                $length = $len[1];
-                $valOffset = 8;
-            } else {
-                $len = unpack('V', substr($content, $pos + 4, 4));
-                $length = $len[1];
-                $valOffset = 8;
-            }
-
-            if ($length > 0 && $length < 1000) {
-                return trim(substr($content, $pos + $valOffset, $length));
-            }
-        }
-        return null;
     }
 }
