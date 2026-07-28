@@ -15,8 +15,10 @@ class ReportController extends Controller
     {
         $request->validate([
             'uuid' => 'required|string',
-            'content' => 'required|string',
-            'image' => 'nullable|string'
+            'content' => 'nullable|string',
+            'image' => 'nullable|string',
+            'annotation_state' => 'nullable|string',
+            'viewport_state' => 'nullable|string'
         ]);
 
         $dicomFile = DicomFile::where('uuid', $request->uuid)->firstOrFail();
@@ -41,6 +43,14 @@ class ReportController extends Controller
 
         if ($snapshotPath) {
             $data['snapshot_path'] = $snapshotPath;
+        }
+
+        if ($request->has('annotation_state')) {
+            $data['annotation_state'] = $request->annotation_state;
+        }
+
+        if ($request->has('viewport_state')) {
+            $data['viewport_state'] = $request->viewport_state;
         }
 
         $report = Report::updateOrCreate(

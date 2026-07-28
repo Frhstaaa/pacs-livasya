@@ -15,6 +15,7 @@ export default function Viewer() {
   const { appLogo } = useAppContext();
   
   const [report, setReport] = useState('');
+  const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [isReportOpen, setIsReportOpen] = useState(false);
@@ -48,6 +49,7 @@ export default function Viewer() {
           if (response.data.report) {
             setReport(response.data.report.content);
             setDoctorData(response.data.report.doctor);
+            setReportData(response.data.report);
           }
         } catch (err) {
           console.log('No existing report found.');
@@ -64,6 +66,49 @@ export default function Viewer() {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
+
+  useEffect(() => {
+    if (uuid && (reportData?.annotation_state || reportData?.viewport_state)) {
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        try {
+          const iframe = document.querySelector('iframe[title="OHIF DICOM Viewer"]');
+          if (iframe && iframe.contentWindow && iframe.contentWindow.cornerstoneTools && iframe.contentWindow.cornerstone) {
+            
+            const elements = iframe.contentWindow.cornerstone.getEnabledElements();
+            const isImageLoaded = elements && elements.length > 0 && elements[0].image;
+
+            if (!isImageLoaded) return; // Wait for image to load
+
+            // Restore Tool State
+            const stateManager = iframe.contentWindow.cornerstoneTools.globalImageIdSpecificToolStateManager;
+            if (stateManager && reportData.annotation_state) {
+              const state = JSON.parse(reportData.annotation_state);
+              stateManager.restoreToolState(state);
+            }
+
+            // Restore Viewport State
+            if (reportData.viewport_state) {
+              const viewport = JSON.parse(reportData.viewport_state);
+              iframe.contentWindow.cornerstone.setViewport(elements[0].element, viewport);
+            }
+            
+            // Force redraw
+            elements.forEach(e => {
+                iframe.contentWindow.cornerstone.updateImage(e.element);
+            });
+            
+            clearInterval(interval);
+          }
+        } catch (e) {
+          console.warn("Error restoring state:", e);
+        }
+        if (attempts > 40) clearInterval(interval); // Stop trying after 20 seconds
+      }, 500);
+      return () => clearInterval(interval);
+    }
+  }, [uuid, reportData]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -88,16 +133,89 @@ export default function Viewer() {
     }
   };
 
+  const getAnnotationState = () => {
+    try {
+      const iframe = document.querySelector('iframe[title="OHIF DICOM Viewer"]');
+      if (!iframe || !iframe.contentWindow.cornerstoneTools) return null;
+      const stateManager = iframe.contentWindow.cornerstoneTools.globalImageIdSpecificToolStateManager;
+      if (stateManager) {
+          const state = stateManager.saveToolState();
+          return JSON.stringify(state);
+      }
+      return null;
+    } catch (e) {
+      // Ignore errors for autosave background polling
+      return null;
+    }
+  };
+
+  const getViewportState = () => {
+    try {
+      const iframe = document.querySelector('iframe[title="OHIF DICOM Viewer"]');
+      if (!iframe || !iframe.contentWindow.cornerstone) return null;
+      const elements = iframe.contentWindow.cornerstone.getEnabledElements();
+      if (elements && elements.length > 0 && elements[0].image) {
+        const viewport = iframe.contentWindow.cornerstone.getViewport(elements[0].element);
+        return JSON.stringify(viewport);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  // Auto-Save Loop
+  const autoSaveTimerRef = useRef(null);
+  const lastSavedStateRef = useRef({ annotation: null, viewport: null, text: null });
+
+  useEffect(() => {
+    if (uuid && (user?.role === 'doctor' || user?.role === 'superadmin')) {
+      autoSaveTimerRef.current = setInterval(async () => {
+         const annotationState = getAnnotationState();
+         const viewportState = getViewportState();
+         
+         const hasAnnotationChanged = annotationState !== lastSavedStateRef.current.annotation;
+         const hasViewportChanged = viewportState !== lastSavedStateRef.current.viewport;
+         const hasTextChanged = report !== lastSavedStateRef.current.text;
+
+         // Initialize refs if this is the first tick, but don't save yet to avoid immediate save
+         if (lastSavedStateRef.current.annotation === null && lastSavedStateRef.current.viewport === null) {
+            lastSavedStateRef.current = { annotation: annotationState, viewport: viewportState, text: report };
+            return;
+         }
+
+         if (hasAnnotationChanged || hasViewportChanged || hasTextChanged) {
+            lastSavedStateRef.current = { annotation: annotationState, viewport: viewportState, text: report };
+            try {
+                await axios.post('/report', { 
+                  uuid, 
+                  content: report || '',
+                  annotation_state: annotationState,
+                  viewport_state: viewportState
+                });
+            } catch (err) {}
+         }
+      }, 1500); 
+
+      return () => clearInterval(autoSaveTimerRef.current);
+    }
+  }, [uuid, user, report]);
+
   const handleSaveReport = async () => {
     setLoading(true);
     setMessage({ type: '', text: '' });
     
     try {
       const base64Image = getCanvasImage();
+      const annotationState = getAnnotationState();
+      const viewportState = getViewportState();
+      
       const res = await axios.post('/report', { 
         uuid, 
-        content: report,
-        image: base64Image
+        content: report || '',
+        image: base64Image,
+        annotation_state: annotationState,
+        viewport_state: viewportState
       });
       setMessage({ type: 'success', text: 'Report saved successfully!' });
       if (!doctorData && res.data.report) {

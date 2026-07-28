@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Report extends Model
 {
-    protected $fillable = ['dicom_file_id', 'doctor_id', 'content'];
+    protected $fillable = ['dicom_file_id', 'doctor_id', 'content', 'snapshot_path', 'annotation_state', 'viewport_state'];
 
     public function dicomFile()
     {
