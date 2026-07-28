@@ -19,6 +19,10 @@ export default function Viewer() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [isReportOpen, setIsReportOpen] = useState(false);
+  
+  // Lifecycle flags
+  const [isReportLoaded, setIsReportLoaded] = useState(false);
+  const [isStateRestored, setIsStateRestored] = useState(false);
 
   // PDF Export States
   const [patientData, setPatientData] = useState(null);
@@ -53,6 +57,8 @@ export default function Viewer() {
           }
         } catch (err) {
           console.log('No existing report found.');
+        } finally {
+          setIsReportLoaded(true);
         }
       };
       fetchReport();
@@ -68,7 +74,12 @@ export default function Viewer() {
   }, []);
 
   useEffect(() => {
-    if (uuid && (reportData?.annotation_state || reportData?.viewport_state)) {
+    if (uuid && isReportLoaded) {
+      if (!reportData?.annotation_state && !reportData?.viewport_state) {
+        setIsStateRestored(true);
+        return;
+      }
+
       let attempts = 0;
       const interval = setInterval(() => {
         attempts++;
@@ -99,16 +110,20 @@ export default function Viewer() {
                 iframe.contentWindow.cornerstone.updateImage(e.element);
             });
             
+            setIsStateRestored(true);
             clearInterval(interval);
           }
         } catch (e) {
           console.warn("Error restoring state:", e);
         }
-        if (attempts > 40) clearInterval(interval); // Stop trying after 20 seconds
+        if (attempts > 40) {
+          setIsStateRestored(true);
+          clearInterval(interval); // Stop trying after 20 seconds
+        }
       }, 500);
       return () => clearInterval(interval);
     }
-  }, [uuid, reportData]);
+  }, [uuid, isReportLoaded, reportData]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -169,7 +184,7 @@ export default function Viewer() {
   const lastSavedStateRef = useRef({ annotation: null, viewport: null, text: null });
 
   useEffect(() => {
-    if (uuid && (user?.role === 'doctor' || user?.role === 'superadmin')) {
+    if (uuid && isStateRestored && (user?.role === 'doctor' || user?.role === 'superadmin')) {
       autoSaveTimerRef.current = setInterval(async () => {
          const annotationState = getAnnotationState();
          const viewportState = getViewportState();
@@ -199,7 +214,7 @@ export default function Viewer() {
 
       return () => clearInterval(autoSaveTimerRef.current);
     }
-  }, [uuid, user, report]);
+  }, [uuid, user, report, isStateRestored]);
 
   const handleSaveReport = async () => {
     setLoading(true);
