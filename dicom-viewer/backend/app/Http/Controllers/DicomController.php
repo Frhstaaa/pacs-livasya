@@ -42,26 +42,39 @@ class DicomController extends Controller
         return response()->json(['message' => 'Upload successful', 'dicom' => $dicomFile]);
     }
 
-    private function getDicomTagValue($content, $tagGroup, $tagElement) {
-        $tagBytes = chr($tagGroup) . chr(0x00) . chr($tagElement) . chr(0x00);
+    private function getTagString($content, $group, $element) {
+        $tagBytes = pack('v', $group) . pack('v', $element);
+        $pos = strpos($content, $tagBytes);
+        if ($pos !== false) {
+            $vr = substr($content, $pos + 4, 2);
+            if ($vr === 'CS' || $vr === 'SH' || $vr === 'LO' || $vr === 'UI' || $vr === 'PN' || $vr === 'DA' || $vr === 'TM' || $vr === 'ST') {
+                $len = unpack('v', substr($content, $pos + 6, 2))[1];
+                return trim(substr($content, $pos + 8, $len));
+            } else {
+                $len = unpack('V', substr($content, $pos + 4, 4));
+                if ($len && $len[1] > 0 && $len[1] < 100) {
+                    return trim(substr($content, $pos + 8, $len[1]));
+                }
+            }
+        }
+        return null;
+    }
+
+    private function getTagUS($content, $group, $element) {
+        $tagBytes = pack('v', $group) . pack('v', $element);
         $pos = strpos($content, $tagBytes);
         if ($pos !== false) {
             $vr = substr($content, $pos + 4, 2);
             if ($vr === 'US' || $vr === 'SS') {
-                $val = substr($content, $pos + 8, 2);
-                $arr = unpack('v', $val);
-                return $arr[1];
+                return unpack('v', substr($content, $pos + 8, 2))[1];
             } else {
-                // Try implicit VR
                 $len = unpack('V', substr($content, $pos + 4, 4));
                 if ($len && $len[1] === 2) {
-                    $val = substr($content, $pos + 8, 2);
-                    $arr = unpack('v', $val);
-                    return $arr[1];
+                    return unpack('v', substr($content, $pos + 8, 2))[1];
                 }
             }
         }
-        return 512;
+        return null;
     }
 
     private function getTransferSyntax($content) {
@@ -99,8 +112,15 @@ class DicomController extends Controller
             $content = file_get_contents($fullPath, false, null, 0, 8192);
         }
 
-        $rows = $this->getDicomTagValue($content, 0x28, 0x10);
-        $cols = $this->getDicomTagValue($content, 0x28, 0x11);
+        $rows = $this->getTagUS($content, 0x0028, 0x0010) ?? 512;
+        $cols = $this->getTagUS($content, 0x0028, 0x0011) ?? 512;
+        $transferSyntax = $this->getTransferSyntax($content);
+
+        $photometric = $this->getTagString($content, 0x0028, 0x0004) ?? 'MONOCHROME2';
+        $pixelRep = $this->getTagUS($content, 0x0028, 0x0103) ?? 0;
+        $bitsAllocated = $this->getTagUS($content, 0x0028, 0x0100) ?? 16;
+        $bitsStored = $this->getTagUS($content, 0x0028, 0x0101) ?? 16;
+        $highBit = $this->getTagUS($content, 0x0028, 0x0102) ?? 15;
         $transferSyntax = $this->getTransferSyntax($content);
 
         return response()->json([
@@ -125,18 +145,16 @@ class DicomController extends Controller
                             'Rows' => $rows,
                             'InstanceNumber' => 1,
                             'SOPClassUID' => '1.2.840.10008.5.1.4.1.1.2',
-                            'PhotometricInterpretation' => 'MONOCHROME2',
-                            'BitsAllocated' => 16,
-                            'BitsStored' => 16,
-                            'PixelRepresentation' => 1,
+                            'Modality' => 'OT',
+                            'PhotometricInterpretation' => $photometric,
+                            'BitsAllocated' => $bitsAllocated,
+                            'BitsStored' => $bitsStored,
+                            'PixelRepresentation' => $pixelRep,
                             'SamplesPerPixel' => 1,
                             'PixelSpacing' => [1.0, 1.0],
-                            'HighBit' => 15,
+                            'HighBit' => $highBit,
                             'ImageOrientationPatient' => [1, 0, 0, 0, 1, 0],
                             'ImagePositionPatient' => [0, 0, 0],
-                            'FrameOfReferenceUID' => '1.2.3.4.5.6.7.' . $cleanUuid,
-                            'ImageType' => ['ORIGINAL', 'PRIMARY', 'AXIAL'],
-                            'Modality' => 'OT',
                             'SOPInstanceUID' => '1.2.3.4.5.6.7.8.' . $cleanUuid,
                             'SeriesInstanceUID' => '1.2.3.4.5.6.' . $cleanUuid,
                             'StudyInstanceUID' => '1.2.3.4.5.' . $cleanUuid,

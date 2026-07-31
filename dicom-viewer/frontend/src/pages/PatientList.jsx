@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useAppContext } from '../context/AppContext';
-import { Users, FileText, Monitor, ChevronRight, Activity, Calendar, Search, Filter, SearchX, Download, Server } from 'lucide-react';
+import { Users, FileText, Monitor, ChevronRight, Activity, Calendar, Search, Filter, SearchX, Download, Server, Trash2 } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import PdfTemplate from '../components/PdfTemplate';
 import RouterImportModal from '../components/RouterImportModal';
@@ -38,6 +38,19 @@ export default function PatientList() {
       setError('Failed to fetch patients.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeletePatient = async (id, name) => {
+    if (!window.confirm(`Are you sure you want to delete patient ${name} and all their DICOM studies? This cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      await axios.delete(`/patients/${id}`);
+      fetchPatients();
+    } catch (err) {
+      alert('Failed to delete patient.');
     }
   };
 
@@ -193,8 +206,8 @@ export default function PatientList() {
         )}
 
         {/* DESKTOP TABLE */}
-        <div className="hidden md:block bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-          <table className="w-full text-left border-collapse">
+        <div className="hidden md:block bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl overflow-x-auto shadow-2xl">
+          <table className="w-full text-left border-collapse min-w-[900px]">
             <thead>
               <tr className="bg-white/5 border-b border-white/10">
                 <th className="p-5 font-bold text-xs uppercase tracking-wider text-[#888]">Patient Name</th>
@@ -226,14 +239,14 @@ export default function PatientList() {
                   return (
                     <tr key={patient.id} className="hover:bg-white/5 transition-colors group">
                       <td className="p-5 align-middle">
-                        <div className="text-white font-bold text-base whitespace-nowrap">{patient.name}</div>
+                        <div className="text-white font-bold text-base max-w-[250px] truncate" title={patient.name}>{patient.name}</div>
                       </td>
                       <td className="p-5 align-middle">
                         <span className="font-mono text-sm text-[#00e5ff] bg-[#00e5ff]/10 px-3 py-1.5 rounded-md inline-block whitespace-nowrap">
                           {patient.medical_record_number}
                         </span>
                       </td>
-                      <td className="p-5 text-[#aaa] align-middle">{patient.birth_date}</td>
+                      <td className="p-5 text-[#aaa] align-middle whitespace-nowrap">{patient.birth_date}</td>
                       <td className="p-5 align-middle">
                         {!hasStudies ? (
                           <span className="text-xs font-bold px-3 py-1 rounded-full border border-gray-600/30 text-gray-400 bg-gray-500/10 whitespace-nowrap">No Studies</span>
@@ -277,6 +290,15 @@ export default function PatientList() {
                           </>
                         ) : (
                           <span className="text-xs font-medium text-[#666] uppercase tracking-wider bg-black/50 px-3 py-2 rounded-lg border border-[#333] whitespace-nowrap">No Data</span>
+                        )}
+                        {(user?.role === 'superadmin' || user?.role === 'admin') && (
+                          <button
+                            onClick={() => handleDeletePatient(patient.id, patient.name)}
+                            className="p-2 bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500 hover:text-white transition-all ml-2"
+                            title="Delete Patient"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         )}
                         </div>
                       </td>
@@ -357,6 +379,16 @@ export default function PatientList() {
                         </button>
                       ) : (
                         <span className="text-xs font-medium text-[#666] uppercase bg-black/50 px-2 py-1 rounded border border-[#333]">Empty</span>
+                      )}
+                      
+                      {(user?.role === 'superadmin' || user?.role === 'admin') && (
+                        <button
+                          onClick={() => handleDeletePatient(patient.id, patient.name)}
+                          className="px-3 py-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl flex items-center active:scale-95 transition-transform"
+                          title="Delete Patient"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       )}
                     </div>
                   </div>

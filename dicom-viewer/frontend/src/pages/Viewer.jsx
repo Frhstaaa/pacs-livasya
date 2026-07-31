@@ -101,14 +101,33 @@ export default function Viewer() {
 
             // Restore Viewport State
             if (reportData.viewport_state) {
-              const viewport = JSON.parse(reportData.viewport_state);
-              iframe.contentWindow.cornerstone.setViewport(elements[0].element, viewport);
+              const savedViewport = JSON.parse(reportData.viewport_state);
+              const currentViewport = iframe.contentWindow.cornerstone.getViewport(elements[0].element);
+              
+              if (currentViewport) {
+                // Merge saved viewport state, BUT preserve the current screen-specific scale and translation
+                const newViewport = Object.assign({}, currentViewport, savedViewport);
+                newViewport.scale = currentViewport.scale;
+                newViewport.translation = currentViewport.translation;
+                
+                iframe.contentWindow.cornerstone.setViewport(elements[0].element, newViewport);
+              }
             }
             
             // Force redraw
             elements.forEach(e => {
                 iframe.contentWindow.cornerstone.updateImage(e.element);
             });
+            
+            // Prevent OHIF from resetting viewport on resize
+            if (!iframe.contentWindow.cornerstone._isResizePatched) {
+              const originalResize = iframe.contentWindow.cornerstone.resize;
+              iframe.contentWindow.cornerstone.resize = function(element, fitToWindow) {
+                  // Force fitToWindow to false so it doesn't reset zoom/pan on mobile resize
+                  return originalResize.call(iframe.contentWindow.cornerstone, element, false);
+              };
+              iframe.contentWindow.cornerstone._isResizePatched = true;
+            }
             
             setIsStateRestored(true);
             clearInterval(interval);

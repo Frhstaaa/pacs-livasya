@@ -21,5 +21,9 @@ const serverConfig = {
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: serverConfig,
-  preview: serverConfig
+  preview: serverConfig,
+  build: {
+    outDir: '../backend/public',
+    emptyOutDir: false, // Don't empty backend/public since it has index.php and other files!
+  }
 })

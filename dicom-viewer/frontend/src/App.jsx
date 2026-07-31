@@ -54,7 +54,10 @@ function Layout({ children }) {
               <Stethoscope className="w-6 h-6 text-white" />
             </div>
           )}
-          <span className="ml-3 font-extrabold text-lg md:text-xl text-transparent bg-clip-text bg-gradient-to-r from-white to-[#aaa] tracking-tight truncate flex-1" title={appName}>{appName}</span>
+          <div className="ml-3 flex flex-col flex-1 overflow-hidden">
+            <span className="font-extrabold text-lg md:text-xl text-transparent bg-clip-text bg-gradient-to-r from-white to-[#aaa] tracking-tight truncate leading-tight" title={appName}>{appName}</span>
+            <span className="text-[10px] text-[#00e5ff] uppercase tracking-widest font-bold truncate mt-0.5">Rumah Sakit Livasya</span>
+          </div>
         </div>
         
         <nav className="flex-1 py-6 flex flex-col gap-2 overflow-y-auto">
@@ -102,7 +105,10 @@ function Layout({ children }) {
               <Stethoscope className="w-5 h-5 text-white" />
             </div>
           )}
-          <span className="ml-2.5 font-extrabold text-lg text-transparent bg-clip-text bg-gradient-to-r from-white to-[#aaa] tracking-tight">{appName}</span>
+          <div className="ml-2.5 flex flex-col">
+            <span className="font-extrabold text-lg text-transparent bg-clip-text bg-gradient-to-r from-white to-[#aaa] tracking-tight leading-tight">{appName}</span>
+            <span className="text-[9px] text-[#00e5ff] uppercase tracking-widest font-bold leading-none mt-0.5">Rumah Sakit Livasya</span>
+          </div>
         </div>
         
         <div className="flex items-center gap-2 bg-white/5 pr-3 pl-1.5 py-1.5 rounded-full border border-white/10 shadow-inner">

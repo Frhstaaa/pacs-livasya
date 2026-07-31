@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+
+  <meta name="description" content="Open Health Imaging Foundation DICOM Viewer" />
+  <meta name="viewport"
+    content="width=device-width,initial-scale=1.0,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+  <meta name="theme-color" content="#000000" />
+  <meta http-equiv="cleartype" content="on" />
+  <meta name="MobileOptimized" content="320" />
+  <meta name="HandheldFriendly" content="True" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+
+
+  <title>OHIF Standalone Viewer</title>
+  <style>
+    html, body {
+      overflow-x: hidden !important;
+      width: 100vw;
+    }
+    /* Make OHIF Toolbar horizontally scrollable on mobile */
+    @media (max-width: 768px) {
+      .ToolbarRow, .toolbarRow, .toolbar-row {
+        overflow-x: auto !important;
+        overflow-y: hidden !important; 
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100vw;
+        padding-top: 12px !important;
+      }
+      
+      .ToolbarRow > *, .toolbarRow > *, .toolbar-row > * {
+        flex-shrink: 0 !important;
+      }
+
+      /* Hide scrollbar for a cleaner look */
+      .ToolbarRow::-webkit-scrollbar, .toolbarRow::-webkit-scrollbar, .toolbar-row::-webkit-scrollbar {
+        display: none;
+      }
+    }
+    
+    /* Ensure toolbar dropdowns are not clipped on desktop */
+    @media (min-width: 769px) {
+      .ToolbarRow, .toolbarRow, .toolbar-row {
+        overflow: visible !important;
+        z-index: 9999 !important;
+        padding-top: 12px !important;
+      }
+    }
+
+    /* Hide everything above the DICOM Viewer Menu (Toolbar) */
+    .notification-bar,
+    .entry-header,
+    .ViewerHeader,
+    .header-brand,
+    .research-use {
+      display: none !important;
+    }
+
+    /* Hide the left Series panel and right Measurement panel */
+    .sidepanel,
+    .pull-right,
+    .pull-left,
+    .scrollable-study-thumbnails,
+    .measurement-table,
+    .left-sidebar,
+    .right-sidebar {
+      display: none !important;
+    }
+
+    /* Hide the top-right overlay that says "Invalid date Invalid date" */
+    .viewport-overlay,
+    .ViewportOverlay,
+    .top-right,
+    .bottom-right,
+    .top-left,
+    .bottom-left,
+    .cornerstone-text,
+    .viewportOverlay {
+      display: none !important;
+    }
+
+    /* Make sure the viewer container expands to fill the entire space */
+    .ViewerMain {
+      width: 100% !important;
+      height: 100% !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+  </style>
+</head>
+
+<body>
+  <noscript> You need to enable JavaScript to run this app. </noscript>
+
+  <div id="root"></div>
+
+  <script type="text/javascript" src="./app-config.js"></script>
+  <script src="./index.umd.js" crossorigin></script>
+  <script>
+    var containerId = 'root';
+    var componentRenderedOrUpdatedCallback = function () {
+      console.log('OHIF Viewer rendered/updated');
+      
+      // Attempt to hide side panels by simulating clicks on active toolbar buttons, 
+      // and trigger resize so the canvas fills the space.
+      var adjustUI = function() {
+        try {
+          // Hide text overlays
+          var overlays = document.querySelectorAll('.viewport-overlay, .ViewportOverlay');
+          overlays.forEach(function(el) { el.style.display = 'none'; });
+
+          // Find and click the 'Series' and 'Measurements' toggle buttons if they are active
+          var activeButtons = document.querySelectorAll('.toolbar-button.active, .ToolbarButton.active');
+          activeButtons.forEach(function(btn) {
+             btn.click();
+          });
+
+          // Hide the Series and Measurement buttons from the toolbar
+          var allButtons = document.querySelectorAll('button, .toolbar-button, .ToolbarButton, [class*="button"]');
+          allButtons.forEach(function(btn) {
+             var text = (btn.innerText || '').toLowerCase();
+             if (text.includes('series') || text.includes('measurement') || text.includes('measure')) {
+                 btn.style.display = 'none';
+             }
+             
+             // PATCH: The Reset button restores the viewport to its original state (when side panels were open).
+             // This makes the image tiny. By dispatching a resize event right after, Cornerstone will auto-fit 
+             // the image to the new full-screen container size properly.
+             if (text.includes('reset') && !btn.dataset.resetPatched) {
+                 btn.dataset.resetPatched = 'true';
+                 btn.addEventListener('click', function() {
+                     setTimeout(function() {
+                         window.dispatchEvent(new Event('resize'));
+                     }, 50);
+                     setTimeout(function() {
+                         window.dispatchEvent(new Event('resize'));
+                     }, 150);
+                 });
+             }
+          });
+          
+          // Trigger a window resize to force cornerstone to redraw and fill the new space
+          window.dispatchEvent(new Event('resize'));
+        } catch (e) {
+          console.log('Error adjusting UI', e);
+        }
+      };
+
+      // Run multiple times to catch dynamic rendering
+      setTimeout(adjustUI, 500);
+      setTimeout(adjustUI, 1500);
+      setTimeout(adjustUI, 3000);
+    };
+    window.OHIFViewer.installViewer(
+      window.config, // See `/config/default.js`
+      containerId,
+      componentRenderedOrUpdatedCallback
+    );
+  </script>
+</body>
+
+</html>

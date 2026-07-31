@@ -18,7 +18,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
     
+    // Patients
     Route::get('/patients', [PatientController::class, 'index']);
+    Route::delete('/patients/{id}', [PatientController::class, 'destroy']);
     Route::post('/dicom/upload', [DicomController::class, 'upload']);
     
     Route::post('/report', [ReportController::class, 'store']);
