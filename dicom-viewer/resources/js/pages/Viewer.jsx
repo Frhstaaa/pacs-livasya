@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -62,26 +62,34 @@ export default function Viewer() {
   const [voiceResetKey, setVoiceResetKey] = useState(0);
   const textareaRef = useRef(null);
 
-  // Handle final speech transcript
-  const handleVoiceFinal = (finalText) => {
-    if (!finalText) return;
+  const lastFinalTranscriptRef = useRef({ text: '', time: 0 });
+
+  // Handle final speech transcript with deduplication guard
+  const handleVoiceFinal = useCallback((finalText) => {
+    if (!finalText || !finalText.trim()) return;
+    const cleanText = finalText.trim();
+    const now = Date.now();
+
+    // Prevent duplicate emissions for the same spoken utterance within 500ms
+    if (lastFinalTranscriptRef.current.text === cleanText && (now - lastFinalTranscriptRef.current.time) < 500) {
+      return;
+    }
+    lastFinalTranscriptRef.current = { text: cleanText, time: now };
+
     setReport(prev => {
       if (!prev || !prev.trim()) {
-        return finalText.trim();
+        return cleanText;
       }
-      const separator = prev.endsWith('\n') || prev.endsWith(' ') ? '' : (finalText.startsWith('\n') ? '' : ' ');
-      return prev + separator + finalText;
+      const separator = prev.endsWith('\n') || prev.endsWith(' ') ? '' : (cleanText.startsWith('\n') ? '' : ' ');
+      return prev + separator + cleanText;
     });
     setInterimVoice('');
-  };
+  }, []);
 
   // Handle real-time interim speech transcript (words streaming live as spoken)
-  const handleVoiceInterim = (interim) => {
-    setInterimVoice(interim || '');
-  };
-
-  // Keep handleVoiceTranscript for compatibility
-  const handleVoiceTranscript = handleVoiceFinal;
+  const handleVoiceInterim = useCallback((interim) => {
+    setInterimVoice(interim ? interim.trim() : '');
+  }, []);
 
   // Handle manual typing in textarea (seamless typing while dictating)
   const handleReportChange = (e) => {
@@ -730,7 +738,6 @@ export default function Viewer() {
                   onInterim={handleVoiceInterim}
                   onListeningChange={setIsVoiceListening}
                   resetKey={voiceResetKey}
-                  onTranscript={handleVoiceTranscript}
                   disabled={loading} 
                 />
               )}

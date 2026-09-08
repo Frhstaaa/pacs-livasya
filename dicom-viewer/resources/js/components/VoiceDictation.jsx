@@ -20,12 +20,25 @@ export default function VoiceDictation({
   const isListeningRef = useRef(false);
   const currentInterimRef = useRef('');
 
+  // Keep callback refs synchronized to prevent recreating SpeechRecognition on parent re-renders
+  const onFinalRef = useRef(onFinal);
+  const onInterimRef = useRef(onInterim);
+  const onTranscriptRef = useRef(onTranscript);
+  const onListeningChangeRef = useRef(onListeningChange);
+
+  useEffect(() => {
+    onFinalRef.current = onFinal;
+    onInterimRef.current = onInterim;
+    onTranscriptRef.current = onTranscript;
+    onListeningChangeRef.current = onListeningChange;
+  });
+
   // Notify parent of listening state change
   const setListeningState = (val) => {
     setIsListening(val);
     isListeningRef.current = val;
-    if (onListeningChange) {
-      onListeningChange(val);
+    if (onListeningChangeRef.current) {
+      onListeningChangeRef.current(val);
     }
   };
 
@@ -36,14 +49,14 @@ export default function VoiceDictation({
       resetKeyRef.current = resetKey;
       currentInterimRef.current = '';
       setInterimText('');
-      if (onInterim) onInterim('');
+      if (onInterimRef.current) onInterimRef.current('');
       if (recognitionRef.current && isListeningRef.current) {
         try {
           recognitionRef.current.stop();
         } catch (e) {}
       }
     }
-  }, [resetKey, onInterim]);
+  }, [resetKey]);
 
   // Check browser SpeechRecognition support
   useEffect(() => {
@@ -75,26 +88,30 @@ export default function VoiceDictation({
         currentInterimRef.current = '';
         setInterimText('');
         // Apply smart Indonesian punctuation & medical formatting
-        const formatted = formatSpeechPunctuation(finalChunk, language);
+        const formatted = formatSpeechPunctuation(finalChunk.trim(), language);
         if (formatted) {
-          if (onFinal) onFinal(formatted);
-          if (onTranscript) onTranscript(formatted);
+          // IMPORTANT: Call only onFinal if provided, fallback to onTranscript (never both)
+          if (onFinalRef.current) {
+            onFinalRef.current(formatted);
+          } else if (onTranscriptRef.current) {
+            onTranscriptRef.current(formatted);
+          }
         }
       }
 
       if (interim) {
         // Stream real-time interim speech as it is being spoken
-        const formattedInterim = formatSpeechPunctuation(interim, language);
+        const formattedInterim = formatSpeechPunctuation(interim.trim(), language);
         currentInterimRef.current = formattedInterim;
         setInterimText(formattedInterim);
-        if (onInterim) {
-          onInterim(formattedInterim);
+        if (onInterimRef.current) {
+          onInterimRef.current(formattedInterim);
         }
       } else if (!finalChunk) {
         currentInterimRef.current = '';
         setInterimText('');
-        if (onInterim) {
-          onInterim('');
+        if (onInterimRef.current) {
+          onInterimRef.current('');
         }
       }
     };
@@ -124,7 +141,7 @@ export default function VoiceDictation({
       } else {
         setListeningState(false);
         setInterimText('');
-        if (onInterim) onInterim('');
+        if (onInterimRef.current) onInterimRef.current('');
       }
     };
 
@@ -137,7 +154,7 @@ export default function VoiceDictation({
         } catch (e) {}
       }
     };
-  }, [language, onTranscript, onFinal, onInterim]);
+  }, [language]);
 
   // Animated wave effect while listening
   useEffect(() => {
@@ -166,15 +183,18 @@ export default function VoiceDictation({
 
       // Finalize any lingering interim so spoken words right before clicking stop aren't lost
       if (currentInterimRef.current) {
-        const formatted = formatSpeechPunctuation(currentInterimRef.current, language);
+        const formatted = formatSpeechPunctuation(currentInterimRef.current.trim(), language);
         if (formatted) {
-          if (onFinal) onFinal(formatted);
-          if (onTranscript) onTranscript(formatted);
+          if (onFinalRef.current) {
+            onFinalRef.current(formatted);
+          } else if (onTranscriptRef.current) {
+            onTranscriptRef.current(formatted);
+          }
         }
         currentInterimRef.current = '';
       }
       setInterimText('');
-      if (onInterim) onInterim('');
+      if (onInterimRef.current) onInterimRef.current('');
 
       if (recognitionRef.current) {
         try {
