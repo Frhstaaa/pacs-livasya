@@ -4,7 +4,6 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useAppContext } from '../context/AppContext';
 import { Users, FileText, Monitor, ChevronRight, Activity, Calendar, Search, Filter, SearchX, Download, Server, Trash2, ShieldCheck } from 'lucide-react';
-import html2pdf from 'html2pdf.js';
 import PdfTemplate from '../components/PdfTemplate';
 import RouterImportModal from '../components/RouterImportModal';
 
@@ -75,6 +74,9 @@ export default function PatientList() {
         });
 
         // Wait for React to render the hidden template
+        const html2pdfModule = await import('html2pdf.js');
+        const html2pdf = html2pdfModule.default || html2pdfModule;
+
         setTimeout(() => {
           const element = pdfRef.current;
           const opt = {
@@ -86,6 +88,8 @@ export default function PatientList() {
           };
 
           html2pdf().set(opt).from(element).save().then(() => {
+            setDownloadingId(null);
+          }).catch(() => {
             setDownloadingId(null);
           });
         }, 500);

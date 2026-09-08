@@ -28,7 +28,6 @@ import {
   Monitor
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import html2pdf from 'html2pdf.js';
 import PdfTemplate from '../components/PdfTemplate';
 import VoiceDictation from '../components/VoiceDictation';
 import ReportTemplateModal from '../components/ReportTemplateModal';
@@ -430,8 +429,8 @@ export default function Viewer() {
     }
   };
 
-  // PDF Export Directly in Viewer
-  const handleExportPdf = () => {
+  // PDF Export Directly in Viewer (Dynamic Import for Optimal Bundle Performance)
+  const handleExportPdf = async () => {
     if (!pdfRef.current) return;
     setPdfLoading(true);
     
@@ -441,24 +440,32 @@ export default function Viewer() {
       setCapturedImage(base64Image);
     }
 
-    setTimeout(() => {
-      const element = pdfRef.current;
-      const patientName = patientData?.name ? patientData.name.replace(/[^a-zA-Z0-9_-]/g, '_') : 'Pasien';
-      const opt = {
-        margin: 0,
-        filename: `Hasil_Radiologi_${patientName}_${uuid?.substring(0, 8)}.pdf`,
-        image: { type: 'jpeg', quality: 1.0 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
+    try {
+      const html2pdfModule = await import('html2pdf.js');
+      const html2pdf = html2pdfModule.default || html2pdfModule;
 
-      html2pdf().set(opt).from(element).save().then(() => {
-        setPdfLoading(false);
-      }).catch(err => {
-        console.error('PDF export error:', err);
-        setPdfLoading(false);
-      });
-    }, 400);
+      setTimeout(() => {
+        const element = pdfRef.current;
+        const patientName = patientData?.name ? patientData.name.replace(/[^a-zA-Z0-9_-]/g, '_') : 'Pasien';
+        const opt = {
+          margin: 0,
+          filename: `Hasil_Radiologi_${patientName}_${uuid?.substring(0, 8)}.pdf`,
+          image: { type: 'jpeg', quality: 1.0 },
+          html2canvas: { scale: 2, useCORS: true, logging: false },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf().set(opt).from(element).save().then(() => {
+          setPdfLoading(false);
+        }).catch(err => {
+          console.error('PDF export error:', err);
+          setPdfLoading(false);
+        });
+      }, 400);
+    } catch (err) {
+      console.error('Failed to load PDF engine:', err);
+      setPdfLoading(false);
+    }
   };
 
   // Structured Template Selection

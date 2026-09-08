@@ -231,7 +231,7 @@ class DicomController extends Controller
         ]);
     }
 
-    public function stream($uuid)
+    public function stream(Request $request, $uuid)
     {
         $dicomFile = DicomFile::where('uuid', $uuid)->firstOrFail();
 
@@ -242,10 +242,23 @@ class DicomController extends Controller
         }
 
         $fullPath = Storage::disk('dicom')->path($path);
+        $lastModified = filemtime($fullPath);
+        $etag = '"' . md5($uuid . '_' . $lastModified . '_' . filesize($fullPath)) . '"';
+
+        // Check conditional GET (If-None-Match)
+        if ($request->header('If-None-Match') === $etag) {
+            return response('', 304, [
+                'ETag' => $etag,
+                'Cache-Control' => 'public, max-age=86400, immutable',
+            ]);
+        }
 
         return response()->file($fullPath, [
             'Content-Type' => 'application/dicom',
-            'Content-Disposition' => 'inline; filename="' . $dicomFile->file_name . '"'
+            'Content-Disposition' => 'inline; filename="' . addslashes($dicomFile->file_name) . '"',
+            'Cache-Control' => 'public, max-age=86400, immutable',
+            'ETag' => $etag,
+            'Last-Modified' => gmdate('D, d M Y H:i:s', $lastModified) . ' GMT',
         ]);
     }
 }

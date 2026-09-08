@@ -59,14 +59,14 @@ class DicomRouterController extends Controller
         $path = rtrim($path, '\\/');
 
         // Try to delete existing connection first to avoid conflict (optional, but good practice)
-        exec('net use "' . $path . '" /delete 2>NUL');
+        exec('net use ' . escapeshellarg($path) . ' /delete 2>NUL');
 
-        $command = 'net use "' . $path . '"';
+        $command = 'net use ' . escapeshellarg($path);
         if ($password) {
-            $command .= ' "' . $password . '"';
+            $command .= ' ' . escapeshellarg($password);
         }
         if ($username) {
-            $command .= ' /user:"' . $username . '"';
+            $command .= ' /user:' . escapeshellarg($username);
         }
 
         exec($command . ' 2>&1', $output, $returnVar);
@@ -90,7 +90,7 @@ class DicomRouterController extends Controller
         $subPath = $request->query('path', '');
         
         // Basic security to prevent directory traversal
-        if (strpos($subPath, '..') !== false) {
+        if (strpos($subPath, '..') !== false || str_contains($subPath, ':')) {
             return response()->json(['error' => 'Invalid path.'], 400);
         }
 
@@ -127,12 +127,12 @@ class DicomRouterController extends Controller
         $username = $this->getSetting('dicom_router_username');
         $password = $this->getSetting('dicom_router_password');
         
-        $command = 'net use "' . rtrim($path, '\\/') . '"';
+        $command = 'net use ' . escapeshellarg(rtrim($path, '\\/'));
         if ($password) {
-            $command .= ' "' . $password . '"';
+            $command .= ' ' . escapeshellarg($password);
         }
         if ($username) {
-            $command .= ' /user:"' . $username . '"';
+            $command .= ' /user:' . escapeshellarg($username);
         }
         exec($command . ' 2>NUL');
     }
@@ -149,6 +149,12 @@ class DicomRouterController extends Controller
         }
         $basePath = rtrim($basePath, '\\/');
         $subPath = ltrim($request->path, '\\/');
+
+        // Security: Prevent directory traversal
+        if (str_contains($subPath, '..') || str_contains($subPath, ':')) {
+            return response()->json(['error' => 'Invalid path.'], 400);
+        }
+
         $fullPath = $basePath . '\\' . $subPath;
 
         $this->connectToShare($basePath);

@@ -16,7 +16,7 @@ use App\Http\Controllers\ReportTemplateController;
 use App\Http\Controllers\IntegrationController;
 use App\Http\Controllers\PermissionController;
 
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -81,11 +81,11 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 // Public verification for QR Code scanning on printed reports
-Route::get('/report/verify-public/{token}', [ReportController::class, 'verifyPublic']);
+Route::get('/report/verify-public/{token}', [ReportController::class, 'verifyPublic'])->middleware('throttle:30,1');
 
 // Public App Settings (name, logo) for Login & Guest layout
 Route::get('/app/settings', [SettingsController::class, 'getAppSettings']);
 
 // Stream endpoint must be outside auth middleware since Cornerstone/wadouri doesn't send auth headers easily
-Route::get('/dicom/stream/{uuid}', [DicomController::class, 'stream']);
-Route::get('/dicom/json/{uuid}', [DicomController::class, 'ohifJson']);
+Route::get('/dicom/stream/{uuid}', [DicomController::class, 'stream'])->middleware('throttle:120,1');
+Route::get('/dicom/json/{uuid}', [DicomController::class, 'ohifJson'])->middleware('throttle:120,1');

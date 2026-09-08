@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
 
 class SettingsController extends Controller
 {
@@ -16,20 +17,27 @@ class SettingsController extends Controller
 
     public function getAppSettings()
     {
-        $logoBase64 = null;
-        $logoPath = $this->getSetting('app_logo');
-        if ($logoPath && Storage::disk('public')->exists($logoPath)) {
-            $path = Storage::disk('public')->path($logoPath);
-            $type = pathinfo($path, PATHINFO_EXTENSION);
-            $data = file_get_contents($path);
-            $logoBase64 = 'data:image/' . $type . ';base64,' . base64_encode($data);
-        }
+        $settings = Cache::remember('app_settings_data', 86400, function () {
+            $records = Setting::whereIn('key', ['app_name', 'hospital_name', 'app_logo'])
+                ->pluck('value', 'key');
 
-        return response()->json([
-            'app_name' => $this->getSetting('app_name') ?? 'DICOM PACS',
-            'hospital_name' => $this->getSetting('hospital_name') ?? 'RSIA Livasya Majalengka',
-            'app_logo' => $logoBase64,
-        ]);
+            $logoBase64 = null;
+            $logoPath = $records['app_logo'] ?? null;
+            if ($logoPath && Storage::disk('public')->exists($logoPath)) {
+                $path = Storage::disk('public')->path($logoPath);
+                $type = pathinfo($path, PATHINFO_EXTENSION);
+                $data = file_get_contents($path);
+                $logoBase64 = 'data:image/' . $type . ';base64,' . base64_encode($data);
+            }
+
+            return [
+                'app_name' => $records['app_name'] ?? 'DICOM PACS',
+                'hospital_name' => $records['hospital_name'] ?? 'RSIA Livasya Majalengka',
+                'app_logo' => $logoBase64,
+            ];
+        });
+
+        return response()->json($settings);
     }
 
     public function saveAppSettings(Request $request)
@@ -68,6 +76,9 @@ class SettingsController extends Controller
                 ['value' => $logoPath]
             );
         }
+
+        // Invalidate cache immediately so new settings take effect instantly
+        Cache::forget('app_settings_data');
 
         return response()->json(['message' => 'Settings saved successfully']);
     }

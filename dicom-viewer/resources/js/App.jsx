@@ -1,16 +1,28 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import { Stethoscope, Users, Monitor, Settings, LogOut, Upload, Shield, Activity, Network } from 'lucide-react';
-import Viewer from './pages/Viewer';
-import PatientList from './pages/PatientList';
 import Login from './pages/Login';
-import UploadDICOM from './pages/Upload';
-import RouterIntegration from './pages/RouterIntegration';
-import SuperadminPanel from './pages/SuperadminPanel';
-import TatDashboard from './pages/TatDashboard';
-import IntegrationPanel from './pages/IntegrationPanel';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppProvider, useAppContext } from './context/AppContext';
 import ProtectedRoute from './components/ProtectedRoute';
+
+// Code-split pages for high performance and low memory consumption
+const Viewer = lazy(() => import('./pages/Viewer'));
+const PatientList = lazy(() => import('./pages/PatientList'));
+const UploadDICOM = lazy(() => import('./pages/Upload'));
+const RouterIntegration = lazy(() => import('./pages/RouterIntegration'));
+const SuperadminPanel = lazy(() => import('./pages/SuperadminPanel'));
+const TatDashboard = lazy(() => import('./pages/TatDashboard'));
+const IntegrationPanel = lazy(() => import('./pages/IntegrationPanel'));
+
+function PageLoader() {
+  return (
+    <div className="h-full w-full bg-[#0b0f19] flex flex-col items-center justify-center text-white min-h-[300px]">
+      <div className="w-9 h-9 border-3 border-slate-800 border-t-sky-400 rounded-full animate-spin mb-3 shadow-[0_0_15px_rgba(56,189,248,0.3)]"></div>
+      <div className="text-[11px] text-slate-400 font-semibold tracking-widest uppercase">Memuat Modul...</div>
+    </div>
+  );
+}
 
 function Layout({ children }) {
   const { user, logout, can } = useAuth();
@@ -200,36 +212,38 @@ function AppRoutes() {
   }
 
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      
-      {/* General Protected Routes */}
-      <Route element={<ProtectedRoute requiredPermission="patients.view" />}>
-        <Route path="/" element={<Layout><PatientList /></Layout>} />
-      </Route>
-      <Route element={<ProtectedRoute requiredPermission="viewer.view" />}>
-        <Route path="/viewer/:uuid?" element={<Layout><Viewer /></Layout>} />
-      </Route>
-      <Route element={<ProtectedRoute requiredPermission="tat.view" />}>
-        <Route path="/tat" element={<Layout><TatDashboard /></Layout>} />
-      </Route>
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        
+        {/* General Protected Routes */}
+        <Route element={<ProtectedRoute requiredPermission="patients.view" />}>
+          <Route path="/" element={<Layout><PatientList /></Layout>} />
+        </Route>
+        <Route element={<ProtectedRoute requiredPermission="viewer.view" />}>
+          <Route path="/viewer/:uuid?" element={<Layout><Viewer /></Layout>} />
+        </Route>
+        <Route element={<ProtectedRoute requiredPermission="tat.view" />}>
+          <Route path="/tat" element={<Layout><TatDashboard /></Layout>} />
+        </Route>
 
-      {/* Upload DICOM */}
-      <Route element={<ProtectedRoute requiredPermission="dicom.upload" />}>
-        <Route path="/upload" element={<Layout><UploadDICOM /></Layout>} />
-      </Route>
+        {/* Upload DICOM */}
+        <Route element={<ProtectedRoute requiredPermission="dicom.upload" />}>
+          <Route path="/upload" element={<Layout><UploadDICOM /></Layout>} />
+        </Route>
 
-      {/* Administration & Integrations */}
-      <Route element={<ProtectedRoute requiredPermission="users.view" />}>
-        <Route path="/superadmin" element={<Layout><SuperadminPanel /></Layout>} />
-      </Route>
-      <Route element={<ProtectedRoute requiredPermission="integration.view" />}>
-        <Route path="/integration" element={<Layout><IntegrationPanel /></Layout>} />
-      </Route>
-      <Route element={<ProtectedRoute requiredPermission="router.view" />}>
-        <Route path="/router" element={<Layout><RouterIntegration /></Layout>} />
-      </Route>
-    </Routes>
+        {/* Administration & Integrations */}
+        <Route element={<ProtectedRoute requiredPermission="users.view" />}>
+          <Route path="/superadmin" element={<Layout><SuperadminPanel /></Layout>} />
+        </Route>
+        <Route element={<ProtectedRoute requiredPermission="integration.view" />}>
+          <Route path="/integration" element={<Layout><IntegrationPanel /></Layout>} />
+        </Route>
+        <Route element={<ProtectedRoute requiredPermission="router.view" />}>
+          <Route path="/router" element={<Layout><RouterIntegration /></Layout>} />
+        </Route>
+      </Routes>
+    </Suspense>
   );
 }
 

@@ -30,7 +30,9 @@ class ReportController extends Controller
             $image_parts = explode(";base64,", $request->image);
             if (count($image_parts) == 2) {
                 $image_type_aux = explode("image/", $image_parts[0]);
-                $image_type = $image_type_aux[1];
+                $rawType = strtolower(trim($image_type_aux[1] ?? 'png'));
+                $allowedExtensions = ['png', 'jpeg', 'jpg', 'webp'];
+                $image_type = in_array($rawType, $allowedExtensions) ? $rawType : 'png';
                 $image_base64 = base64_decode($image_parts[1]);
                 $fileName = 'snapshots/' . $dicomFile->uuid . '_' . time() . '.' . $image_type;
                 Storage::disk('public')->put($fileName, $image_base64);
