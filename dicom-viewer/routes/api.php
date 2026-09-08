@@ -78,6 +78,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/integration/logs', [IntegrationController::class, 'getLogs'])->middleware('permission:integration.view');
     Route::post('/integration/logs/{id}/resend', [IntegrationController::class, 'resendLog'])->middleware('permission:integration.manage');
     Route::post('/integration/sync-orders', [IntegrationController::class, 'syncOrdersFromSimrs'])->middleware('permission:integration.manage');
+
+    // SatuSehat DICOM & FHIR Dispatchers
+    Route::post('/integration/satusehat/lookup-patient', [IntegrationController::class, 'lookupPatientIhs'])->middleware('permission:integration.manage');
+    Route::get('/integration/satusehat/preview-imaging-study/{patientId}', [IntegrationController::class, 'previewImagingStudyPayload'])->middleware('permission:integration.view');
+    Route::post('/integration/satusehat/send-imaging-study/{patientId}', [IntegrationController::class, 'sendImagingStudy'])->middleware('permission:integration.manage');
+    Route::post('/integration/satusehat/send-diagnostic-report/{patientId}', [IntegrationController::class, 'sendDiagnosticReport'])->middleware('permission:integration.manage');
 });
 
 // Public verification for QR Code scanning on printed reports

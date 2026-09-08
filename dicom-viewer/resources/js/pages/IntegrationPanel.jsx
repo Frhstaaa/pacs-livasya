@@ -3,12 +3,13 @@ import {
   Network, Server, ShieldCheck, CheckCircle2, AlertTriangle, 
   RefreshCw, Save, Eye, EyeOff, ExternalLink, ArrowRight, 
   Activity, Database, Globe, Layers, Copy, Check, FileText,
-  Clock, Send, Code, AlertCircle, Search, Sliders, ChevronRight
+  Clock, Send, Code, AlertCircle, Search, Sliders, ChevronRight,
+  User, CheckCircle, UploadCloud, FileCheck, X
 } from 'lucide-react';
 import axios from 'axios';
 
 export default function IntegrationPanel() {
-  const [activeTab, setActiveTab] = useState('satusehat'); // 'satusehat', 'simrs', 'mapping', 'logs'
+  const [activeTab, setActiveTab] = useState('satusehat'); // 'satusehat', 'dispatcher', 'simrs', 'mapping', 'logs'
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -20,6 +21,23 @@ export default function IntegrationPanel() {
   const [simrsTestResult, setSimrsTestResult] = useState(null);
   const [syncingOrders, setSyncingOrders] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
+
+  // Dispatcher & DICOM SatuSehat State
+  const [dispatcherPatients, setDispatcherPatients] = useState([]);
+  const [loadingDispatcherPatients, setLoadingDispatcherPatients] = useState(false);
+  const [nikSearchInput, setNikSearchInput] = useState('');
+  const [searchingNik, setSearchingNik] = useState(false);
+  const [nikSearchResult, setNikSearchResult] = useState(null);
+  const [nikSearchError, setNikSearchError] = useState(null);
+  const [selectedPatientForNik, setSelectedPatientForNik] = useState(null);
+
+  // Preview & Dispatch States
+  const [previewPayload, setPreviewPayload] = useState(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [sendingStudyPatientId, setSendingStudyPatientId] = useState(null);
+  const [sendingReportPatientId, setSendingReportPatientId] = useState(null);
+  const [dispatchStatusAlert, setDispatchStatusAlert] = useState(null);
 
   // Form Configuration State
   const [form, setForm] = useState({
@@ -265,6 +283,131 @@ export default function IntegrationPanel() {
     }
   };
 
+  // Fetch Patients for Dispatcher
+  const fetchDispatcherPatients = async () => {
+    setLoadingDispatcherPatients(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get('/api/patients', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      setDispatcherPatients(res.data || []);
+    } catch (err) {
+      console.error('Failed to load patients for dispatcher:', err);
+    } finally {
+      setLoadingDispatcherPatients(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'dispatcher') {
+      fetchDispatcherPatients();
+    }
+  }, [activeTab]);
+
+  // Lookup NIK
+  const handleLookupNik = async (nikToSearch, patientIdToLink = null) => {
+    if (!nikToSearch || nikToSearch.length < 16) {
+      setNikSearchError('Harap masukkan 16 digit NIK KTP yang valid.');
+      return;
+    }
+    setSearchingNik(true);
+    setNikSearchError(null);
+    setNikSearchResult(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post('/api/integration/satusehat/lookup-patient', {
+        nik: nikToSearch,
+        patient_id: patientIdToLink || undefined,
+      }, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      setNikSearchResult(res.data);
+      if (patientIdToLink) {
+        fetchDispatcherPatients();
+        setSelectedPatientForNik(null);
+      }
+    } catch (err) {
+      setNikSearchError(err.response?.data?.message || 'Gagal mencari identitas pasien di SatuSehat.');
+    } finally {
+      setSearchingNik(false);
+    }
+  };
+
+  // Preview ImagingStudy
+  const handlePreviewImagingStudy = async (patientId) => {
+    setLoadingPreview(true);
+    setPreviewPayload(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`/api/integration/satusehat/preview-imaging-study/${patientId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      setPreviewPayload(res.data);
+      setShowPreviewModal(true);
+    } catch (err) {
+      alert('Gagal membuat preview payload: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  // Send ImagingStudy
+  const handleSendImagingStudy = async (patientId) => {
+    setSendingStudyPatientId(patientId);
+    setDispatchStatusAlert(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post(`/api/integration/satusehat/send-imaging-study/${patientId}`, {}, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      setDispatchStatusAlert({
+        success: true,
+        type: 'imaging_study',
+        message: res.data.message,
+        id: res.data.imaging_study_id,
+        simulated: res.data.simulated
+      });
+      fetchDispatcherPatients();
+    } catch (err) {
+      setDispatchStatusAlert({
+        success: false,
+        type: 'imaging_study',
+        message: err.response?.data?.message || err.message,
+      });
+    } finally {
+      setSendingStudyPatientId(null);
+    }
+  };
+
+  // Send DiagnosticReport
+  const handleSendDiagnosticReport = async (patientId) => {
+    setSendingReportPatientId(patientId);
+    setDispatchStatusAlert(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post(`/api/integration/satusehat/send-diagnostic-report/${patientId}`, {}, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      setDispatchStatusAlert({
+        success: true,
+        type: 'diagnostic_report',
+        message: res.data.message,
+        id: res.data.report_id,
+        simulated: res.data.simulated
+      });
+      fetchDispatcherPatients();
+    } catch (err) {
+      setDispatchStatusAlert({
+        success: false,
+        type: 'diagnostic_report',
+        message: err.response?.data?.message || err.message,
+      });
+    } finally {
+      setSendingReportPatientId(null);
+    }
+  };
+
   // Copy helper
   const handleCopy = (text, key) => {
     navigator.clipboard.writeText(text);
@@ -331,6 +474,7 @@ export default function IntegrationPanel() {
         <div className="mt-6 flex items-center gap-1 border-b border-slate-800/80 -mb-5 pb-px overflow-x-auto">
           {[
             { id: 'satusehat', label: '🌐 SatuSehat (HL7 FHIR R4)', activeIcon: Globe },
+            { id: 'dispatcher', label: '📡 Dispatcher DICOM & ImagingStudy', activeIcon: Send },
             { id: 'simrs', label: '🏥 SIMRS Gateway', activeIcon: Server },
             { id: 'mapping', label: '📑 Pemetaan Kode (LOINC)', activeIcon: Layers },
             { id: 'logs', label: '📊 Log Transmisi & Outbox', activeIcon: Clock },
@@ -622,6 +766,347 @@ export default function IntegrationPanel() {
                   Didukung penuh standar HL7 FHIR Release 4 (R4)
                 </div>
               </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* TAB: Dispatcher DICOM & ImagingStudy */}
+        {activeTab === 'dispatcher' && (
+          <div className="space-y-6">
+            
+            {/* Header Banner */}
+            <div className="p-5 rounded-2xl bg-gradient-to-r from-sky-500/10 via-indigo-500/10 to-transparent border border-sky-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-xl bg-sky-500/20 border border-sky-500/40 flex items-center justify-center text-sky-400 shrink-0 shadow-lg shadow-sky-500/10">
+                  <Send className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="text-base font-bold text-white flex items-center gap-2">
+                    Dispatcher Radiologi SatuSehat Kemenkes RI
+                    <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30 tracking-wider uppercase">
+                      Direct Native API
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Merangkai metadata berkas DICOM lokal menjadi standar HL7 FHIR R4 (<code>ImagingStudy</code> &amp; <code>DiagnosticReport</code>) dan mengirimkannya langsung ke SATUSEHAT API Gateway.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={fetchDispatcherPatients}
+                  disabled={loadingDispatcherPatients}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-400 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingDispatcherPatients ? 'animate-spin' : ''}`} />
+                  <span>Segarkan Data</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Status Alert if any action triggered */}
+            {dispatchStatusAlert && (
+              <div className={`p-4 rounded-2xl border transition-all flex items-start justify-between gap-3 ${
+                dispatchStatusAlert.success
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-200'
+              }`}>
+                <div className="flex items-center gap-3">
+                  {dispatchStatusAlert.success ? (
+                    <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+                  )}
+                  <div>
+                    <div className="text-xs font-bold">{dispatchStatusAlert.message}</div>
+                    {dispatchStatusAlert.id && (
+                      <div className="text-[11px] text-slate-300 font-mono mt-0.5">
+                        ID Terdaftar: <span className="text-emerald-400 font-bold">{dispatchStatusAlert.id}</span>
+                        {dispatchStatusAlert.simulated && (
+                          <span className="ml-2 text-amber-400 text-[10px] font-sans font-semibold">(Mode Simulasi)</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDispatchStatusAlert(null)}
+                  className="text-xs opacity-60 hover:opacity-100 text-white cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* NIK KTP to SatuSehat IHS Lookup Card */}
+            <div className="bg-[#111827] border border-slate-800 rounded-2xl p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <User className="w-4 h-4 text-sky-400" />
+                    Pencarian IHS Pasien Berdasarkan NIK KTP (Identity Resolver)
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    SatuSehat mewajibkan nomor IHS nasional (<code>Patient/&#123;id&#125;</code>) pada setiap pengiriman pemeriksaan radiologi.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                <div className="relative flex-1 w-full">
+                  <input
+                    type="text"
+                    maxLength={16}
+                    value={nikSearchInput}
+                    onChange={(e) => setNikSearchInput(e.target.value.replace(/\D/g, ''))}
+                    placeholder="Masukkan 16 digit NIK KTP Pasien (e.g. 3201123456780001)..."
+                    className="w-full bg-slate-900/90 border border-slate-800 rounded-xl pl-3.5 pr-12 py-2.5 text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-sky-500 transition-all"
+                  />
+                  <div className="absolute right-3 top-2.5 text-[10px] text-slate-500 font-mono">
+                    {nikSearchInput.length}/16
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleLookupNik(nikSearchInput)}
+                  disabled={searchingNik || nikSearchInput.length !== 16}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold transition-all shadow-md shadow-sky-500/20 flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer"
+                >
+                  {searchingNik ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                  <span>{searchingNik ? 'Mencari ke SatuSehat...' : 'Cari IHS Pasien'}</span>
+                </button>
+              </div>
+
+              {nikSearchError && (
+                <div className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 px-3.5 py-2 rounded-xl flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{nikSearchError}</span>
+                </div>
+              )}
+
+              {nikSearchResult && nikSearchResult.data && (
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 animate-fade-in flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+                      <CheckCircle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white flex items-center gap-2">
+                        {nikSearchResult.data.name}
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 uppercase font-mono">
+                          IHS Terverifikasi
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5 flex flex-wrap items-center gap-3 font-mono">
+                        <span>IHS Number: <strong className="text-emerald-400">{nikSearchResult.data.ihs_number}</strong></span>
+                        <span>NIK: {nikSearchResult.data.nik}</span>
+                        <span>Gender: {nikSearchResult.data.gender === 'male' ? 'Laki-laki' : 'Perempuan'}</span>
+                        <span>Tgl Lahir: {nikSearchResult.data.birth_date}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(nikSearchResult.data.ihs_number, 'ihs_quick')}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-bold border border-emerald-500/40 transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    {copiedKey === 'ihs_quick' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedKey === 'ihs_quick' ? 'Tersalin' : 'Salin IHS'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Patients Worklist & Dispatch Table */}
+            <div className="bg-[#111827] border border-slate-800 rounded-2xl p-5 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-sky-400" />
+                    Daftar Pemeriksaan Radiologi &amp; Status Transmisi SATUSEHAT
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Pilih pasien untuk meninjau struktur FHIR R4 atau mengirimkan berkas langsung ke SATUSEHAT.
+                  </p>
+                </div>
+                <span className="text-xs text-slate-400 font-mono">
+                  {dispatcherPatients.length} Pasien Terdaftar
+                </span>
+              </div>
+
+              {loadingDispatcherPatients ? (
+                <div className="py-12 flex flex-col items-center justify-center text-slate-400">
+                  <RefreshCw className="w-6 h-6 animate-spin text-sky-400 mb-2" />
+                  <span className="text-xs">Memuat daftar pasien radiologi...</span>
+                </div>
+              ) : dispatcherPatients.length === 0 ? (
+                <div className="py-10 text-center text-slate-500 text-xs">
+                  Belum ada data pasien atau berkas pemeriksaan radiologi.
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-800">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900/90 text-slate-400 uppercase tracking-wider font-bold border-b border-slate-800 text-[10px]">
+                      <tr>
+                        <th className="px-4 py-3">Pasien &amp; No. RM</th>
+                        <th className="px-4 py-3">Identitas SATUSEHAT (IHS)</th>
+                        <th className="px-4 py-3">Modalitas &amp; Citra</th>
+                        <th className="px-4 py-3">Status ImagingStudy</th>
+                        <th className="px-4 py-3 text-right">Aksi Dispatcher</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 font-medium">
+                      {dispatcherPatients.map((patient) => {
+                        const hasFiles = patient.dicom_files && patient.dicom_files.length > 0;
+                        const hasIhs = Boolean(patient.satusehat_ihs_id);
+                        const isStudySynced = Boolean(patient.satusehat_imaging_study_id);
+                        const primaryDicom = hasFiles ? patient.dicom_files[0] : null;
+                        const report = hasFiles ? patient.dicom_files.find(f => f.report)?.report : null;
+                        const isReportVerified = Boolean(report?.is_verified);
+                        const isReportSynced = Boolean(report?.satusehat_report_id);
+
+                        return (
+                          <tr key={patient.id} className="hover:bg-slate-800/30 transition-colors">
+                            <td className="px-4 py-3">
+                              <div className="text-white font-bold text-xs">{patient.name}</div>
+                              <div className="text-[11px] text-sky-400 font-mono mt-0.5">{patient.medical_record_number}</div>
+                            </td>
+
+                            <td className="px-4 py-3">
+                              {hasIhs ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono text-[11px] text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                                    {patient.satusehat_ihs_id}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+                                    IHS Belum Ditautkan
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const defaultNik = patient.nik || '';
+                                      const promptNik = window.prompt(`Masukkan 16 digit NIK untuk ${patient.name}:`, defaultNik);
+                                      if (promptNik) {
+                                        handleLookupNik(promptNik, patient.id);
+                                      }
+                                    }}
+                                    className="text-[10px] text-sky-400 hover:text-sky-300 underline font-bold cursor-pointer"
+                                  >
+                                    + Input NIK
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+
+                            <td className="px-4 py-3">
+                              {hasFiles ? (
+                                <div>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30 font-mono">
+                                    {primaryDicom?.modality || 'DX'}
+                                  </span>
+                                  <span className="text-[11px] text-slate-400 ml-2">
+                                    {patient.dicom_files.length} Berkas DICOM
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 text-[11px]">Tidak ada berkas</span>
+                              )}
+                            </td>
+
+                            <td className="px-4 py-3">
+                              {isStudySynced ? (
+                                <div>
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                    <CheckCircle className="w-3 h-3 text-emerald-400" />
+                                    Terkirim
+                                  </span>
+                                  <div className="text-[10px] text-slate-400 font-mono mt-0.5 truncate max-w-[140px]" title={patient.satusehat_imaging_study_id}>
+                                    {patient.satusehat_imaging_study_id}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                                  Belum Dikirim
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {hasFiles && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePreviewImagingStudy(patient.id)}
+                                      disabled={loadingPreview}
+                                      className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-400 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                                      title="Preview Payload FHIR R4 JSON"
+                                    >
+                                      <Code className="w-3.5 h-3.5" />
+                                      <span className="hidden lg:inline">JSON</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSendImagingStudy(patient.id)}
+                                      disabled={sendingStudyPatientId === patient.id}
+                                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                                        isStudySynced
+                                          ? 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700'
+                                          : 'bg-sky-500 hover:bg-sky-400 text-white shadow-sky-500/20'
+                                      }`}
+                                      title="Kirim ImagingStudy ke SATUSEHAT"
+                                    >
+                                      {sendingStudyPatientId === patient.id ? (
+                                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                      ) : (
+                                        <Send className="w-3.5 h-3.5" />
+                                      )}
+                                      <span>{isStudySynced ? 'Kirim Ulang' : 'Kirim Study'}</span>
+                                    </button>
+
+                                    {report && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSendDiagnosticReport(patient.id)}
+                                        disabled={sendingReportPatientId === patient.id || !isReportVerified}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                                          !isReportVerified
+                                            ? 'bg-slate-900 text-slate-500 border border-slate-800 cursor-not-allowed'
+                                            : isReportSynced
+                                            ? 'bg-slate-800 text-emerald-400 border border-emerald-500/30 hover:bg-slate-700'
+                                            : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'
+                                        }`}
+                                        title={isReportVerified ? 'Kirim Hasil Ekspertise Dokter (DiagnosticReport)' : 'Ekspertise Belum Diverifikasi'}
+                                      >
+                                        {sendingReportPatientId === patient.id ? (
+                                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                          <FileCheck className="w-3.5 h-3.5" />
+                                        )}
+                                        <span>{isReportSynced ? 'Report OK' : 'Kirim Ekspertise'}</span>
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
           </div>
@@ -1339,6 +1824,66 @@ export default function IntegrationPanel() {
               >
                 Tutup
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Preview FHIR ImagingStudy Payload */}
+      {showPreviewModal && previewPayload && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-[#111827] border border-slate-800 rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
+              <div className="flex items-center gap-2.5">
+                <Code className="w-5 h-5 text-sky-400" />
+                <div>
+                  <h3 className="text-sm font-bold text-white">
+                    Preview Payload FHIR R4: <code>ImagingStudy</code>
+                  </h3>
+                  <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                    Pasien: {previewPayload.patient_name} • Accession: {previewPayload.accession_number}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPreviewModal(false)}
+                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-all cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body: JSON Code */}
+            <div className="p-4 flex-1 overflow-y-auto font-mono text-xs bg-[#0b0f19] text-sky-300">
+              <pre className="whitespace-pre-wrap leading-relaxed">
+                {JSON.stringify(previewPayload.payload, null, 2)}
+              </pre>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-800 flex items-center justify-between bg-slate-900/60">
+              <span className="text-[11px] text-slate-500">
+                Format resmi SATUSEHAT Kemenkes RI No. HK.01.07/MENKES/1423/2022
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleCopy(JSON.stringify(previewPayload.payload, null, 2), 'payload_json')}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  {copiedKey === 'payload_json' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedKey === 'payload_json' ? 'Tersalin' : 'Salin JSON'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPreviewModal(false)}
+                  className="px-4 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold transition-all cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
             </div>
           </div>
         </div>

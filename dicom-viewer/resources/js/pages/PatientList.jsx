@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useAppContext } from '../context/AppContext';
-import { Users, FileText, Monitor, ChevronRight, Activity, Calendar, Search, Filter, SearchX, Download, Server, Trash2, ShieldCheck } from 'lucide-react';
+import { Users, FileText, Monitor, ChevronRight, Activity, Calendar, Search, Filter, SearchX, Download, Server, Trash2, ShieldCheck, Globe } from 'lucide-react';
 import PdfTemplate from '../components/PdfTemplate';
 import RouterImportModal from '../components/RouterImportModal';
 
@@ -279,6 +279,16 @@ export default function PatientList() {
                           <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-amber-500/30 text-amber-400 bg-amber-500/10 whitespace-nowrap">
                             Menunggu Bacaan
                           </span>
+                        )}
+                        {patient.satusehat_imaging_study_id && (
+                          <div className="mt-1.5">
+                            <span 
+                              className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-sky-500/30 text-sky-300 bg-sky-500/15 inline-flex items-center gap-1 shadow-sm"
+                              title={`SATUSEHAT ImagingStudy ID: ${patient.satusehat_imaging_study_id}`}
+                            >
+                              <Globe className="w-3 h-3 text-sky-400 shrink-0" /> SATUSEHAT
+                            </span>
+                          </div>
                         )}
                       </td>
                       <td className="p-4 align-middle">
