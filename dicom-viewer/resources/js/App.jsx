@@ -13,7 +13,7 @@ import { AppProvider, useAppContext } from './context/AppContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function Layout({ children }) {
-  const { user, logout } = useAuth();
+  const { user, logout, can } = useAuth();
   const { appName, appLogo } = useAppContext();
   const navigate = useNavigate();
   const location = useLocation();
@@ -75,23 +75,37 @@ function Layout({ children }) {
           <div className="px-5 mb-1.5 text-[11px] font-bold text-slate-500 uppercase tracking-widest">
             Alur Klinis (Workflow)
           </div>
-          <NavItem to="/" icon={Users} label="Daftar Pasien" />
           
-          {(user?.role === 'nurse' || user?.role === 'superadmin') && (
+          {can('patients.view') && (
+            <NavItem to="/" icon={Users} label="Daftar Pasien" />
+          )}
+          
+          {can('dicom.upload') && (
             <NavItem to="/upload" icon={Upload} label="Unggah DICOM" />
           )}
 
-          <NavItem to="/viewer" icon={Monitor} label="Radiology Viewer" />
-          <NavItem to="/tat" icon={Activity} label="Dashboard Kinerja TAT" />
+          {can('viewer.view') && (
+            <NavItem to="/viewer" icon={Monitor} label="Radiology Viewer" />
+          )}
+          
+          {can('tat.view') && (
+            <NavItem to="/tat" icon={Activity} label="Dashboard Kinerja TAT" />
+          )}
 
-          {user?.role === 'superadmin' && (
+          {(user?.role === 'superadmin' || can('users.view') || can('permissions.manage') || can('integration.view') || can('router.view')) && (
             <>
               <div className="px-5 mt-5 mb-1.5 text-[11px] font-bold text-slate-500 uppercase tracking-widest">
                 Administrasi Sistem
               </div>
-              <NavItem to="/superadmin" icon={Shield} label="Kelola Pengguna" />
-              <NavItem to="/integration" icon={Network} label="Integrasi SIMRS & FHIR" />
-              <NavItem to="/router" icon={Settings} label="Integrasi PACS Router" />
+              {(user?.role === 'superadmin' || can('users.view') || can('permissions.manage')) && (
+                <NavItem to="/superadmin" icon={Shield} label="Pengguna & Hak Akses" />
+              )}
+              {(user?.role === 'superadmin' || can('integration.view')) && (
+                <NavItem to="/integration" icon={Network} label="Integrasi SIMRS & FHIR" />
+              )}
+              {(user?.role === 'superadmin' || can('router.view')) && (
+                <NavItem to="/router" icon={Settings} label="Integrasi PACS Router" />
+              )}
             </>
           )}
         </nav>
@@ -116,7 +130,7 @@ function Layout({ children }) {
 
             <button 
               onClick={handleLogout}
-              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors shrink-0"
+              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors shrink-0 cursor-pointer"
               title="Keluar / Logout"
             >
               <LogOut className="w-4 h-4" />
@@ -156,20 +170,15 @@ function Layout({ children }) {
 
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 w-full h-15 bg-[#0e1424]/95 backdrop-blur-xl border-t border-[#1e293b] flex items-center justify-around z-50 pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
-        <NavItem to="/" icon={Users} label="Pasien" />
-        
-        {(user?.role === 'nurse' || user?.role === 'superadmin') && (
-          <NavItem to="/upload" icon={Upload} label="Unggah" />
-        )}
-        
-        <NavItem to="/viewer" icon={Monitor} label="Viewer" />
-        <NavItem to="/tat" icon={Activity} label="TAT" />
-
-        {user?.role === 'superadmin' && (
+        {can('patients.view') && <NavItem to="/" icon={Users} label="Pasien" />}
+        {can('dicom.upload') && <NavItem to="/upload" icon={Upload} label="Unggah" />}
+        {can('viewer.view') && <NavItem to="/viewer" icon={Monitor} label="Viewer" />}
+        {can('tat.view') && <NavItem to="/tat" icon={Activity} label="TAT" />}
+        {(user?.role === 'superadmin' || can('users.view') || can('permissions.manage')) && (
           <NavItem to="/superadmin" icon={Shield} label="Admin" />
         )}
         
-        <button onClick={handleLogout} className="flex flex-col items-center justify-center px-2 py-1 text-slate-400 hover:text-rose-400 transition-colors">
+        <button onClick={handleLogout} className="flex flex-col items-center justify-center px-2 py-1 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer">
           <LogOut className="w-5 h-5" />
           <span className="text-[9px] font-medium mt-0.5">Keluar</span>
         </button>
@@ -194,22 +203,30 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       
-      {/* General Protected Routes (Any logged in user) */}
-      <Route element={<ProtectedRoute />}>
+      {/* General Protected Routes */}
+      <Route element={<ProtectedRoute requiredPermission="patients.view" />}>
         <Route path="/" element={<Layout><PatientList /></Layout>} />
+      </Route>
+      <Route element={<ProtectedRoute requiredPermission="viewer.view" />}>
         <Route path="/viewer/:uuid?" element={<Layout><Viewer /></Layout>} />
+      </Route>
+      <Route element={<ProtectedRoute requiredPermission="tat.view" />}>
         <Route path="/tat" element={<Layout><TatDashboard /></Layout>} />
       </Route>
 
-      {/* Nurse & Superadmin Routes (Upload capability) */}
-      <Route element={<ProtectedRoute allowedRoles={['nurse', 'superadmin']} />}>
+      {/* Upload DICOM */}
+      <Route element={<ProtectedRoute requiredPermission="dicom.upload" />}>
         <Route path="/upload" element={<Layout><UploadDICOM /></Layout>} />
       </Route>
 
-      {/* Superadmin Only Routes */}
-      <Route element={<ProtectedRoute allowedRoles={['superadmin']} />}>
+      {/* Administration & Integrations */}
+      <Route element={<ProtectedRoute requiredPermission="users.view" />}>
         <Route path="/superadmin" element={<Layout><SuperadminPanel /></Layout>} />
+      </Route>
+      <Route element={<ProtectedRoute requiredPermission="integration.view" />}>
         <Route path="/integration" element={<Layout><IntegrationPanel /></Layout>} />
+      </Route>
+      <Route element={<ProtectedRoute requiredPermission="router.view" />}>
         <Route path="/router" element={<Layout><RouterIntegration /></Layout>} />
       </Route>
     </Routes>

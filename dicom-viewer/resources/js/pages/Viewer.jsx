@@ -35,7 +35,7 @@ import ReportTemplateModal from '../components/ReportTemplateModal';
 
 export default function Viewer() {
   const { uuid } = useParams();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const { appLogo } = useAppContext();
   
   const [report, setReport] = useState('');
@@ -301,7 +301,7 @@ export default function Viewer() {
   const lastSavedStateRef = useRef({ annotation: null, viewport: null, text: null });
 
   useEffect(() => {
-    if (uuid && isStateRestored && (user?.role === 'doctor' || user?.role === 'superadmin') && (!reportData?.is_verified || !isLocked)) {
+    if (uuid && isStateRestored && can('reports.create') && (!reportData?.is_verified || !isLocked)) {
       autoSaveTimerRef.current = setInterval(async () => {
          const annotationState = getAnnotationState();
          const viewportState = getViewportState();
@@ -671,26 +671,30 @@ export default function Viewer() {
               <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
                 <label className="block text-xs font-bold text-[#888] uppercase tracking-wider">Findings & Diagnosis</label>
                 
-                {(user?.role === 'doctor' || user?.role === 'superadmin') && uuid && (
+                {can('reports.create') && uuid && (
                   <div className="flex items-center gap-2 flex-wrap">
                     {/* Structured Medical Template Button */}
-                    <button 
-                      onClick={() => setShowTemplateModal(true)}
-                      disabled={reportData?.is_verified && isLocked}
-                      className="flex items-center text-xs font-bold px-3 py-1.5 bg-[#00e5ff]/10 text-[#00e5ff] border border-[#00e5ff]/30 rounded-lg hover:bg-[#00e5ff] hover:text-black transition-all shadow-[0_0_10px_rgba(0,229,255,0.15)] disabled:opacity-40"
-                      title="Pilih template hasil ekspertise baku"
-                    >
-                      <FileText className="w-3.5 h-3.5 mr-1.5" /> Template Medis
-                    </button>
+                    {can('reports.templates') && (
+                      <button 
+                        onClick={() => setShowTemplateModal(true)}
+                        disabled={reportData?.is_verified && isLocked}
+                        className="flex items-center text-xs font-bold px-3 py-1.5 bg-[#00e5ff]/10 text-[#00e5ff] border border-[#00e5ff]/30 rounded-lg hover:bg-[#00e5ff] hover:text-black transition-all shadow-[0_0_10px_rgba(0,229,255,0.15)] disabled:opacity-40 cursor-pointer"
+                        title="Pilih template hasil ekspertise baku"
+                      >
+                        <FileText className="w-3.5 h-3.5 mr-1.5" /> Template Medis
+                      </button>
+                    )}
 
                     {/* AI Diagnosis Assist */}
-                    <button 
-                      onClick={handleAnalyzeWithAI}
-                      disabled={reportData?.is_verified && isLocked}
-                      className="flex items-center text-xs font-bold px-3 py-1.5 bg-purple-500/10 text-purple-400 border border-purple-500/30 rounded-lg hover:bg-purple-500 hover:text-white transition-all shadow-[0_0_10px_rgba(168,85,247,0.2)] disabled:opacity-40"
-                    >
-                      <Sparkles className="w-3 h-3 mr-1.5" /> AI Assist
-                    </button>
+                    {can('ai.analyze') && (
+                      <button 
+                        onClick={handleAnalyzeWithAI}
+                        disabled={reportData?.is_verified && isLocked}
+                        className="flex items-center text-xs font-bold px-3 py-1.5 bg-purple-500/10 text-purple-400 border border-purple-500/30 rounded-lg hover:bg-purple-500 hover:text-white transition-all shadow-[0_0_10px_rgba(168,85,247,0.2)] disabled:opacity-40 cursor-pointer"
+                      >
+                        <Sparkles className="w-3 h-3 mr-1.5" /> AI Assist
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -713,11 +717,11 @@ export default function Viewer() {
                       </div>
                     </div>
 
-                    {(user?.role === 'doctor' || user?.role === 'superadmin') && (
+                    {can('reports.unverify') && (
                       isLocked ? (
                         <button
                           onClick={handleUnverifyReport}
-                          className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-semibold text-amber-300 hover:text-white flex items-center gap-1.5 transition-all shrink-0"
+                          className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-semibold text-amber-300 hover:text-white flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
                           title="Buka kunci untuk melakukan revisi ekspertise"
                         >
                           <Unlock className="w-3 h-3 text-amber-400" />
@@ -733,7 +737,7 @@ export default function Viewer() {
                 </div>
               )}
               
-              {(user?.role === 'doctor' || user?.role === 'superadmin') && uuid && (!reportData?.is_verified || !isLocked) && (
+              {can('reports.create') && can('voice.dictation') && uuid && (!reportData?.is_verified || !isLocked) && (
                 <VoiceDictation 
                   onFinal={handleVoiceFinal}
                   onInterim={handleVoiceInterim}
@@ -749,7 +753,7 @@ export default function Viewer() {
                   value={displayReport}
                   onChange={handleReportChange}
                   readOnly={reportData?.is_verified && isLocked}
-                  disabled={(user?.role !== 'doctor' && user?.role !== 'superadmin') || !uuid}
+                  disabled={!can('reports.create') || !uuid}
                   className={`w-full flex-1 bg-white/5 border rounded-2xl p-4 text-white focus:outline-none resize-none transition-all text-sm md:text-base leading-relaxed ${
                     reportData?.is_verified && isLocked
                       ? 'border-emerald-500/30 bg-emerald-950/10 opacity-90 cursor-not-allowed'
@@ -757,7 +761,7 @@ export default function Viewer() {
                         ? 'border-rose-500/60 shadow-[0_0_25px_rgba(244,63,94,0.15)] ring-1 ring-rose-500/50' 
                         : 'border-white/10 focus:border-[#00e5ff] focus:ring-1 focus:ring-[#00e5ff]'
                   } disabled:opacity-50`}
-                  placeholder={(user?.role === 'doctor' || user?.role === 'superadmin') ? "Ketik temuan klinis, gunakan Template Medis, atau dikte suara..." : "Belum ada ekspertise yang dibuat."}
+                  placeholder={can('reports.create') ? "Ketik temuan klinis, gunakan Template Medis, atau dikte suara..." : "Belum ada ekspertise yang dibuat (Hanya Baca)."}
                 />
                 
                 {/* Real-time Voice Dictation Status Indicator */}
@@ -768,8 +772,7 @@ export default function Viewer() {
                   </div>
                 )}
               </div>
-              
-              {(user?.role === 'doctor' || user?.role === 'superadmin') && uuid && (
+                       {can('reports.create') && uuid && (
                 <div className="space-y-2.5">
                   {reportData?.is_verified ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -779,20 +782,21 @@ export default function Viewer() {
                         className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold py-3.5 px-4 rounded-2xl hover:opacity-95 transition-all flex justify-center items-center shadow-[0_0_20px_rgba(16,185,129,0.3)] text-sm cursor-pointer"
                       >
                         <Printer className="w-4 h-4 mr-2" />
-                        {pdfLoading ? 'Menyiapkan PDF...' : 'Cetak / Unduh PDF Sah'}
+                        {pdfLoading ? 'Menyiapkan...' : 'Cetak Dokumen Resmi'}
                       </button>
 
-                      <button 
-                        onClick={handleSaveReport}
-                        disabled={loading}
-                        className="w-full bg-white/10 hover:bg-white/15 text-white font-semibold py-3.5 px-4 rounded-2xl transition-all flex justify-center items-center text-sm border border-white/10 cursor-pointer"
-                      >
-                        <Save className="w-4 h-4 mr-2 text-sky-400" />
-                        Simpan Perubahan
-                      </button>
+                      {can('reports.unverify') && isLocked && (
+                        <button 
+                          onClick={handleUnverifyReport}
+                          className="w-full bg-white/10 hover:bg-white/15 text-white font-semibold py-3.5 px-4 rounded-2xl transition-all flex justify-center items-center text-sm border border-white/10 cursor-pointer"
+                        >
+                          <Unlock className="w-4 h-4 mr-2 text-amber-400" />
+                          Revisi Hasil
+                        </button>
+                      )}
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-2.5">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         <button 
                           onClick={handleSaveReport}
@@ -803,15 +807,17 @@ export default function Viewer() {
                           {loading ? 'Menyimpan...' : 'Simpan Draft'}
                         </button>
 
-                        <button 
-                          onClick={handleVerifyReport}
-                          disabled={loading || !report?.trim()}
-                          className="w-full bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 text-white font-bold py-3.5 px-4 rounded-2xl hover:opacity-95 transition-all flex justify-center items-center shadow-[0_0_20px_rgba(14,165,233,0.3)] text-sm disabled:opacity-50 cursor-pointer"
-                          title="Sahkan dan berikan tanda tangan digital resmi pada dokumen ini"
-                        >
-                          <ShieldCheck className="w-4 h-4 mr-2 text-white" />
-                          {loading ? 'Memproses...' : 'Verifikasi & TTD'}
-                        </button>
+                        {can('reports.verify') && (
+                          <button 
+                            onClick={handleVerifyReport}
+                            disabled={loading || !report?.trim()}
+                            className="w-full bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 text-white font-bold py-3.5 px-4 rounded-2xl hover:opacity-95 transition-all flex justify-center items-center shadow-[0_0_20px_rgba(14,165,233,0.3)] text-sm disabled:opacity-50 cursor-pointer"
+                            title="Sahkan dan berikan tanda tangan digital resmi pada dokumen ini"
+                          >
+                            <ShieldCheck className="w-4 h-4 mr-2 text-white" />
+                            {loading ? 'Memproses...' : 'Verifikasi & TTD'}
+                          </button>
+                        )}
                       </div>
 
                       {report && (
@@ -831,12 +837,12 @@ export default function Viewer() {
             </div>
           )}
             
-            {(user?.role === 'nurse') && (
-              <div className="text-xs text-[#888] text-center p-4 bg-white/5 border border-white/5 rounded-xl mt-4">
-                <span className="font-bold text-yellow-500 block mb-1">View Only Mode</span>
-                You are logged in as a Nurse. Only Doctors can write or edit the clinical report.
-              </div>
-            )}
+          {!can('reports.create') && (
+            <div className="text-xs text-[#888] text-center p-4 bg-white/5 border border-white/5 rounded-xl mt-4">
+              <span className="font-bold text-sky-400 block mb-1">Mode Hanya Baca (View Only)</span>
+              Akun Anda tidak memiliki izin untuk menulis atau menandatangani ekspertise medis.
+            </div>
+          )}
           </div>
         </div>
 

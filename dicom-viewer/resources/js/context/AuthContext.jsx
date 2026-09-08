@@ -39,6 +39,16 @@ export const AuthProvider = ({ children }) => {
     fetchUser();
   }, [token]);
 
+  const refetchUser = async () => {
+    if (!token) return;
+    try {
+      const response = await axios.get('/user');
+      setUser(response.data);
+    } catch (err) {
+      console.error('Failed to refetch user', err);
+    }
+  };
+
   const login = async (email, password) => {
     const response = await axios.post('/login', { email, password });
     setToken(response.data.token);
@@ -52,8 +62,14 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
   };
 
+  const can = (permissionSlug) => {
+    if (!user) return false;
+    if (user.role === 'superadmin') return true;
+    return Array.isArray(user.permissions) && user.permissions.includes(permissionSlug);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, login, logout, loading, can, refetchUser }}>
       {!loading && children}
     </AuthContext.Provider>
   );

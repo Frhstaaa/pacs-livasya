@@ -25,6 +25,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'signature_path',
     ];
 
     /**
@@ -48,5 +49,61 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function userPermissions()
+    {
+        return $this->hasMany(UserPermission::class);
+    }
+
+    public function hasPermission(string $permissionName): bool
+    {
+        if ($this->role === 'superadmin') {
+            return true;
+        }
+
+        // Check user-level override
+        $override = $this->userPermissions()
+            ->whereHas('permission', function ($q) use ($permissionName) {
+                $q->where('name', $permissionName);
+            })
+            ->first();
+
+        if ($override !== null) {
+            return (bool) $override->is_granted;
+        }
+
+        // Fallback to role-level permissions
+        return RolePermission::where('role', $this->role)
+            ->whereHas('permission', function ($q) use ($permissionName) {
+                $q->where('name', $permissionName);
+            })
+            ->exists();
+    }
+
+    public function getAllPermissions(): array
+    {
+        if ($this->role === 'superadmin') {
+            return Permission::pluck('name')->toArray();
+        }
+
+        // Get permissions granted to the role
+        $rolePermissions = Permission::whereHas('rolePermissions', function ($q) {
+            $q->where('role', $this->role);
+        })->pluck('name', 'id')->toArray(); // [id => name]
+
+        // Apply user overrides
+        $overrides = $this->userPermissions()->with('permission')->get();
+        foreach ($overrides as $override) {
+            if ($override->permission) {
+                if ($override->is_granted) {
+                    $rolePermissions[$override->permission_id] = $override->permission->name;
+                } else {
+                    unset($rolePermissions[$override->permission_id]);
+                }
+            }
+        }
+
+        return array_values($rolePermissions);
     }
 }

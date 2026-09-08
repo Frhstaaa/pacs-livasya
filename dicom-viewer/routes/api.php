@@ -14,6 +14,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TatDashboardController;
 use App\Http\Controllers\ReportTemplateController;
 use App\Http\Controllers\IntegrationController;
+use App\Http\Controllers\PermissionController;
 
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -21,54 +22,62 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
     
-    // Patients
-    Route::get('/patients', [PatientController::class, 'index']);
-    Route::delete('/patients/{id}', [PatientController::class, 'destroy']);
-    Route::post('/dicom/upload', [DicomController::class, 'upload']);
+    // Patients & Worklist
+    Route::get('/patients', [PatientController::class, 'index'])->middleware('permission:patients.view');
+    Route::delete('/patients/{id}', [PatientController::class, 'destroy'])->middleware('permission:patients.delete');
+    Route::post('/dicom/upload', [DicomController::class, 'upload'])->middleware('permission:dicom.upload');
     
     // Reports & Digital Verification
-    Route::post('/report', [ReportController::class, 'store']);
-    Route::get('/report/{uuid}', [ReportController::class, 'show']);
-    Route::post('/report/verify', [ReportController::class, 'verify']);
-    Route::post('/report/unverify', [ReportController::class, 'unverify']);
+    Route::post('/report', [ReportController::class, 'store'])->middleware('permission:reports.create');
+    Route::get('/report/{uuid}', [ReportController::class, 'show'])->middleware('permission:viewer.view');
+    Route::post('/report/verify', [ReportController::class, 'verify'])->middleware('permission:reports.verify');
+    Route::post('/report/unverify', [ReportController::class, 'unverify'])->middleware('permission:reports.unverify');
 
     // Structured Medical Report Templates (Macros)
-    Route::get('/report-templates', [ReportTemplateController::class, 'index']);
-    Route::post('/report-templates', [ReportTemplateController::class, 'store']);
-    Route::put('/report-templates/{id}', [ReportTemplateController::class, 'update']);
-    Route::delete('/report-templates/{id}', [ReportTemplateController::class, 'destroy']);
-    Route::post('/report-templates/{id}/favorite', [ReportTemplateController::class, 'toggleFavorite']);
+    Route::get('/report-templates', [ReportTemplateController::class, 'index'])->middleware('permission:viewer.view');
+    Route::post('/report-templates', [ReportTemplateController::class, 'store'])->middleware('permission:reports.templates');
+    Route::put('/report-templates/{id}', [ReportTemplateController::class, 'update'])->middleware('permission:reports.templates');
+    Route::delete('/report-templates/{id}', [ReportTemplateController::class, 'destroy'])->middleware('permission:reports.templates');
+    Route::post('/report-templates/{id}/favorite', [ReportTemplateController::class, 'toggleFavorite'])->middleware('permission:reports.templates');
 
     // TAT Performance Dashboard (Hospital Quality Indicator)
-    Route::get('/tat/dashboard', [TatDashboardController::class, 'index']);
-    Route::get('/tat/export', [TatDashboardController::class, 'exportCsv']);
+    Route::get('/tat/dashboard', [TatDashboardController::class, 'index'])->middleware('permission:tat.view');
+    Route::get('/tat/export', [TatDashboardController::class, 'exportCsv'])->middleware('permission:tat.export');
 
-    Route::get('/dicom-router/settings', [DicomRouterController::class, 'getSettings']);
-    Route::post('/dicom-router/settings', [DicomRouterController::class, 'saveSettings']);
-    Route::post('/dicom-router/test', [DicomRouterController::class, 'testConnection']);
-    Route::get('/dicom-router/browse', [DicomRouterController::class, 'browse']);
-    Route::post('/dicom-router/import', [DicomRouterController::class, 'import']);
+    // PACS Router Integration
+    Route::get('/dicom-router/settings', [DicomRouterController::class, 'getSettings'])->middleware('permission:router.view');
+    Route::post('/dicom-router/settings', [DicomRouterController::class, 'saveSettings'])->middleware('permission:router.manage');
+    Route::post('/dicom-router/test', [DicomRouterController::class, 'testConnection'])->middleware('permission:router.manage');
+    Route::get('/dicom-router/browse', [DicomRouterController::class, 'browse'])->middleware('permission:router.view');
+    Route::post('/dicom-router/import', [DicomRouterController::class, 'import'])->middleware('permission:dicom.import_router');
 
     // AI Endpoint
-    Route::post('/ai/analyze', [AiController::class, 'analyze']);
+    Route::post('/ai/analyze', [AiController::class, 'analyze'])->middleware('permission:ai.analyze');
 
     // User Management
-    Route::get('/users', [UserController::class, 'index']);
-    Route::post('/users', [UserController::class, 'store']);
-    Route::put('/users/{id}', [UserController::class, 'update']);
-    Route::delete('/users/{id}', [UserController::class, 'destroy']);
+    Route::get('/users', [UserController::class, 'index'])->middleware('permission:users.view');
+    Route::post('/users', [UserController::class, 'store'])->middleware('permission:users.create');
+    Route::put('/users/{id}', [UserController::class, 'update'])->middleware('permission:users.edit');
+    Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware('permission:users.delete');
+
+    // Role & Permission Management (RBAC & Per-User Overrides)
+    Route::get('/permissions', [PermissionController::class, 'index'])->middleware('permission:permissions.manage');
+    Route::post('/permissions/roles', [PermissionController::class, 'updateRoles'])->middleware('permission:permissions.manage');
+    Route::get('/permissions/users/{id}', [PermissionController::class, 'getUserPermissions'])->middleware('permission:permissions.manage');
+    Route::post('/permissions/users/{id}', [PermissionController::class, 'updateUserPermissions'])->middleware('permission:permissions.manage');
+    Route::post('/permissions/reset-defaults', [PermissionController::class, 'resetDefaults'])->middleware('permission:permissions.manage');
 
     // App Settings
-    Route::post('/app/settings', [SettingsController::class, 'saveAppSettings']);
+    Route::post('/app/settings', [SettingsController::class, 'saveAppSettings'])->middleware('permission:settings.manage');
 
     // FHIR SatuSehat & SIMRS Integration Endpoints
-    Route::get('/integration/settings', [IntegrationController::class, 'getSettings']);
-    Route::post('/integration/settings', [IntegrationController::class, 'saveSettings']);
-    Route::post('/integration/test-fhir', [IntegrationController::class, 'testFhirConnection']);
-    Route::post('/integration/test-simrs', [IntegrationController::class, 'testSimrsConnection']);
-    Route::get('/integration/logs', [IntegrationController::class, 'getLogs']);
-    Route::post('/integration/logs/{id}/resend', [IntegrationController::class, 'resendLog']);
-    Route::post('/integration/sync-orders', [IntegrationController::class, 'syncOrdersFromSimrs']);
+    Route::get('/integration/settings', [IntegrationController::class, 'getSettings'])->middleware('permission:integration.view');
+    Route::post('/integration/settings', [IntegrationController::class, 'saveSettings'])->middleware('permission:integration.manage');
+    Route::post('/integration/test-fhir', [IntegrationController::class, 'testFhirConnection'])->middleware('permission:integration.manage');
+    Route::post('/integration/test-simrs', [IntegrationController::class, 'testSimrsConnection'])->middleware('permission:integration.manage');
+    Route::get('/integration/logs', [IntegrationController::class, 'getLogs'])->middleware('permission:integration.view');
+    Route::post('/integration/logs/{id}/resend', [IntegrationController::class, 'resendLog'])->middleware('permission:integration.manage');
+    Route::post('/integration/sync-orders', [IntegrationController::class, 'syncOrdersFromSimrs'])->middleware('permission:integration.manage');
 });
 
 // Public verification for QR Code scanning on printed reports

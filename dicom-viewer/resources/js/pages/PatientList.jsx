@@ -10,7 +10,7 @@ import RouterImportModal from '../components/RouterImportModal';
 
 export default function PatientList() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const { appLogo } = useAppContext();
   
   // Data State
@@ -156,22 +156,24 @@ export default function PatientList() {
             </p>
           </div>
           
-          {(user?.role === 'nurse' || user?.role === 'superadmin') && (
+          {(can('dicom.upload') || can('dicom.import_router')) && (
             <div className="w-full md:w-auto flex flex-col md:flex-row gap-3">
-              {user?.role === 'superadmin' && (
+              {can('dicom.import_router') && (
                 <button 
                   onClick={() => setShowRouterModal(true)}
-                  className="w-full md:w-auto px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all flex justify-center items-center shadow-sm"
+                  className="w-full md:w-auto px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all flex justify-center items-center shadow-sm cursor-pointer"
                 >
                   <Server className="w-4 h-4 mr-2 text-sky-400" /> Import Router PACS
                 </button>
               )}
-              <button 
-                onClick={() => navigate('/upload')}
-                className="w-full md:w-auto px-5 py-3 bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 hover:from-sky-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold shadow-[0_4px_20px_rgba(14,165,233,0.3)] transition-all flex justify-center items-center"
-              >
-                <FileText className="w-4 h-4 mr-2" /> Unggah Studi Baru
-              </button>
+              {can('dicom.upload') && (
+                <button 
+                  onClick={() => navigate('/upload')}
+                  className="w-full md:w-auto px-5 py-3 bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 hover:from-sky-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold shadow-[0_4px_20px_rgba(14,165,233,0.3)] transition-all flex justify-center items-center cursor-pointer"
+                >
+                  <FileText className="w-4 h-4 mr-2" /> Unggah Studi Baru
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -318,11 +320,11 @@ export default function PatientList() {
                         ) : (
                           <span className="text-xs font-medium text-slate-500 bg-slate-900/60 px-2.5 py-1 rounded-lg border border-slate-800 whitespace-nowrap">Kosong</span>
                         )}
-                        {(user?.role === 'superadmin' || user?.role === 'admin') && (
+                        {can('patients.delete') && (
                           <button
                             onClick={() => handleDeletePatient(patient.id, patient.name)}
-                            className="p-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl hover:bg-rose-500 hover:text-white transition-all ml-1"
-                            title="Hapus Pasien"
+                            className="p-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl hover:bg-rose-500 hover:text-white transition-all ml-1 cursor-pointer"
+                            title="Hapus Pasien & Arsip Studi"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -423,11 +425,11 @@ export default function PatientList() {
                         <span className="text-xs font-medium text-slate-500 bg-slate-900 px-2 py-1 rounded border border-slate-800">Kosong</span>
                       )}
                       
-                      {(user?.role === 'superadmin' || user?.role === 'admin') && (
+                      {can('patients.delete') && (
                         <button
                           onClick={() => handleDeletePatient(patient.id, patient.name)}
-                          className="px-3 py-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl flex items-center active:scale-95 transition-transform"
-                          title="Delete Patient"
+                          className="px-3 py-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl flex items-center active:scale-95 transition-transform cursor-pointer"
+                          title="Hapus Pasien & Arsip Studi"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

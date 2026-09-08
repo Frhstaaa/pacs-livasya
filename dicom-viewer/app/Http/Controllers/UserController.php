@@ -26,7 +26,7 @@ class UserController extends Controller
             'name' => 'required|string',
             'email' => 'required|email|unique:users',
             'password' => 'required|string|min:6',
-            'role' => 'required|in:superadmin,doctor,nurse',
+            'role' => 'required|in:superadmin,doctor,radiographer,nurse',
             'signature' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
 
@@ -53,7 +53,7 @@ class UserController extends Controller
         $request->validate([
             'name' => 'required|string',
             'email' => 'required|email|unique:users,email,' . $id,
-            'role' => 'required|in:superadmin,doctor,nurse',
+            'role' => 'required|in:superadmin,doctor,radiographer,nurse',
             'signature' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
 
