@@ -64,25 +64,48 @@
       display: none !important;
     }
 
-    /* Layout Chooser Popup styling & positioning: on top, right-aligned, sleek medical theme */
+    /* Layout Chooser Popup: position fixed breaks out of ancestor overflow clipping (especially on mobile toolbar) */
     .layoutChooser, 
     .layoutChooser-dropdown-menu,
     [class*="layoutChooser"] {
-      position: absolute !important;
-      top: calc(100% + 6px) !important;
-      right: 0 !important;
+      position: fixed !important;
+      top: 56px !important;
+      right: 12px !important;
       left: auto !important;
-      width: 172px !important;
-      min-width: 172px !important;
-      max-width: 172px !important;
-      z-index: 999999 !important;
-      background: #0f141c !important;
+      width: 176px !important;
+      min-width: 176px !important;
+      max-width: calc(100vw - 20px) !important;
+      z-index: 99999999 !important;
+      background: rgba(11, 15, 25, 0.96) !important;
+      backdrop-filter: blur(16px) !important;
+      -webkit-backdrop-filter: blur(16px) !important;
       border: 1.5px solid #00e5ff !important;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.9), 0 0 25px rgba(0, 229, 255, 0.25) !important;
-      border-radius: 12px !important;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.95), 0 0 30px rgba(0, 229, 255, 0.3) !important;
+      border-radius: 14px !important;
       padding: 12px 14px 10px 14px !important;
       box-sizing: border-box !important;
       user-select: none !important;
+      animation: layoutPopIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+
+    @keyframes layoutPopIn {
+      from { opacity: 0; transform: scale(0.92) translateY(-6px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    /* Support for More dropdown (.dd-menu-list) to also break out of toolbar clipping */
+    .dd-menu-list {
+      position: fixed !important;
+      top: 56px !important;
+      right: 60px !important;
+      left: auto !important;
+      z-index: 99999999 !important;
+      background: rgba(11, 15, 25, 0.96) !important;
+      backdrop-filter: blur(16px) !important;
+      border: 1.5px solid rgba(0, 229, 255, 0.5) !important;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.95), 0 0 20px rgba(0, 229, 255, 0.2) !important;
+      border-radius: 12px !important;
+      overflow: hidden !important;
     }
 
     /* Title header inside Layout Chooser */
@@ -304,9 +327,32 @@
     );
 
     // =========================================================================
-    // LAYOUT CHOOSER UX FIXES: Outside Click, Cell Selection, Close Button, Esc
+    // LAYOUT CHOOSER UX FIXES: Outside Click, Cell Selection, Close Button, Esc & Mobile Dynamic Positioning
     // =========================================================================
     (function() {
+      function alignLayoutChooser() {
+        var chooser = document.querySelector('.layoutChooser, .layoutChooser-dropdown-menu');
+        if (!chooser || chooser.style.display === 'none' || getComputedStyle(chooser).display === 'none') return;
+        
+        var layoutBtn = document.querySelector('.ToolbarRow [class*="layout"], .ToolbarRow [class*="Layout"]');
+        if (layoutBtn) {
+          var rect = layoutBtn.getBoundingClientRect();
+          var top = Math.round(rect.bottom + 6);
+          var right = Math.max(8, Math.round(window.innerWidth - rect.right));
+          
+          // Ensure it stays on-screen on narrow mobile widths
+          if (window.innerWidth - right < 185) {
+            right = Math.max(8, window.innerWidth - 185);
+          }
+
+          chooser.style.setProperty('position', 'fixed', 'important');
+          chooser.style.setProperty('top', top + 'px', 'important');
+          chooser.style.setProperty('right', right + 'px', 'important');
+          chooser.style.setProperty('left', 'auto', 'important');
+          chooser.style.setProperty('z-index', '99999999', 'important');
+        }
+      }
+
       function closeLayoutChooser() {
         var chooser = document.querySelector('.layoutChooser, .layoutChooser-dropdown-menu');
         if (!chooser) return;
@@ -351,24 +397,43 @@
         closeLayoutChooser();
       });
 
-      // 5. MutationObserver to inject the (X) Close button into .layoutChooser
+      // 5. Window resize / scroll -> Realign popup
+      window.addEventListener('resize', alignLayoutChooser);
+      document.addEventListener('scroll', alignLayoutChooser, true);
+
+      // 6. Hook Layout button click to realign immediately
+      document.addEventListener('click', function(e) {
+        var layoutBtn = e.target.closest && e.target.closest('.ToolbarRow [class*="layout"], .ToolbarRow [class*="Layout"]');
+        if (layoutBtn) {
+          setTimeout(alignLayoutChooser, 20);
+          setTimeout(alignLayoutChooser, 80);
+        }
+      }, true);
+
+      // 7. MutationObserver to inject Close button and realign on appearance
       var observer = new MutationObserver(function() {
         var chooser = document.querySelector('.layoutChooser, .layoutChooser-dropdown-menu');
-        if (chooser && !chooser.querySelector('.layout-close-btn')) {
-          var closeBtn = document.createElement('button');
-          closeBtn.className = 'layout-close-btn';
-          closeBtn.innerHTML = '&times;';
-          closeBtn.title = 'Tutup';
-          closeBtn.type = 'button';
-          closeBtn.addEventListener('click', function(ev) {
-            ev.stopPropagation();
-            ev.preventDefault();
-            closeLayoutChooser();
-          });
-          chooser.appendChild(closeBtn);
+        if (chooser) {
+          if (chooser.style.display !== 'none' && getComputedStyle(chooser).display !== 'none') {
+            alignLayoutChooser();
+          }
+
+          if (!chooser.querySelector('.layout-close-btn')) {
+            var closeBtn = document.createElement('button');
+            closeBtn.className = 'layout-close-btn';
+            closeBtn.innerHTML = '&times;';
+            closeBtn.title = 'Tutup';
+            closeBtn.type = 'button';
+            closeBtn.addEventListener('click', function(ev) {
+              ev.stopPropagation();
+              ev.preventDefault();
+              closeLayoutChooser();
+            });
+            chooser.appendChild(closeBtn);
+          }
         }
       });
-      observer.observe(document.body, { childList: true, subtree: true });
+      observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
     })();
   </script>
 </body>
