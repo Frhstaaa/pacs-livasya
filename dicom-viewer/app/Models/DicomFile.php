@@ -6,7 +6,16 @@ use Illuminate\Database\Eloquent\Model;
 
 class DicomFile extends Model
 {
-    protected $fillable = ['patient_id', 'uuid', 'file_name', 'file_path', 'priority', 'modality'];
+    protected $fillable = [
+        'patient_id', 
+        'uuid', 
+        'file_name', 
+        'file_path', 
+        'priority', 
+        'modality',
+        'accession_number',
+        'order_number'
+    ];
 
     public function patient()
     {

@@ -40,6 +40,9 @@ class DicomService
         // Parse DICOM metadata
         $patientName = $this->extractStringTag($content, 0x0010, 0x0010) ?: 'Unknown Patient';
         $mrn = $this->extractStringTag($content, 0x0010, 0x0020) ?: 'UNKNOWN_MRN';
+        $accessionNumber = $this->extractStringTag($content, 0x0008, 0x0050);
+        $modality = $this->extractStringTag($content, 0x0008, 0x0060) ?: 'DX';
+        $studyDescription = $this->extractStringTag($content, 0x0008, 0x1030);
         
         $birthDateStr = $this->extractStringTag($content, 0x0010, 0x0030);
         $birthDate = null;
@@ -54,23 +57,47 @@ class DicomService
         $patientName = trim($patientName);
         $mrn = trim($mrn);
 
-        // Use Repository
-        $patient = $this->patientRepo->firstOrCreateByMrn($mrn, [
-            'name' => $patientName, 
-            'birth_date' => $birthDate
-        ]);
+        // Auto-match against existing bridged SIMRS patient by MRN or Accession Number
+        $patient = null;
+        if ($mrn !== 'UNKNOWN_MRN') {
+            $patient = \App\Models\Patient::where('medical_record_number', $mrn)->first();
+        }
+        if (!$patient && !empty($accessionNumber)) {
+            $patient = \App\Models\Patient::where('order_number', $accessionNumber)->first();
+        }
+
+        if ($patient) {
+            // Patient already registered from SIMRS! Update status to image_acquired
+            $patient->order_status = 'image_acquired';
+            if ($studyDescription && empty($patient->requested_procedure)) {
+                $patient->requested_procedure = $studyDescription;
+            }
+            $patient->save();
+        } else {
+            // New patient from modality
+            $patient = $this->patientRepo->firstOrCreateByMrn($mrn, [
+                'name' => $patientName, 
+                'birth_date' => $birthDate,
+                'order_status' => 'image_acquired',
+                'requested_procedure' => $studyDescription ?: 'Pemeriksaan Radiologi',
+                'order_number' => $accessionNumber
+            ]);
+        }
 
         $uuid = Str::uuid()->toString();
         $fileName = basename($fullPath);
         
         Storage::disk('dicom')->put($uuid . '.dcm', $content);
 
-        // Use Repository
+        // Save DicomFile linked to patient
         $this->dicomRepo->create([
             'patient_id' => $patient->id,
             'uuid' => $uuid,
             'file_name' => $fileName,
             'file_path' => $uuid . '.dcm',
+            'modality' => $modality,
+            'accession_number' => $accessionNumber,
+            'order_number' => $patient->order_number ?: $accessionNumber,
         ]);
     }
 

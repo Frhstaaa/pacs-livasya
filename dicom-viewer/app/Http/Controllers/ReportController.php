@@ -169,6 +169,11 @@ class ReportController extends Controller
             Report::where('dicom_file_id', $rel->id)->update($data);
         }
 
+        if ($patient) {
+            $patient->order_status = 'verified';
+            $patient->save();
+        }
+
         try {
             // Auto-Push to SatuSehat (DiagnosticReport) if enabled
             $fhirEnabled = Setting::where('key', 'fhir_satusehat_enabled')->value('value') == '1';
@@ -213,6 +218,8 @@ class ReportController extends Controller
                     'request_payload' => json_encode([
                         'mrn' => $patientMrn,
                         'patient_name' => $patientName,
+                        'order_number' => $patient ? $patient->order_number : null,
+                        'no_rawat' => $patient ? $patient->satusehat_encounter_id : null,
                         'verification_token' => $token,
                         'verified_at' => now()->toIso8601String(),
                         'doctor_name' => $request->user()->name,

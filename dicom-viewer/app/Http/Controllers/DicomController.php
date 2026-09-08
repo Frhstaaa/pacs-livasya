@@ -16,9 +16,10 @@ class DicomController extends Controller
     public function upload(Request $request)
     {
         $request->validate([
-            'patient_name' => 'required|string',
-            'medical_record_number' => 'required|string',
-            'birth_date' => 'required|date',
+            'patient_id' => 'nullable|integer|exists:patients,id',
+            'patient_name' => 'nullable|string',
+            'medical_record_number' => 'nullable|string',
+            'birth_date' => 'nullable|date',
             'priority' => 'nullable|string|in:regular,cito',
             'modality' => 'nullable|string',
             'file' => 'nullable|file',
@@ -30,10 +31,29 @@ class DicomController extends Controller
             return response()->json(['message' => 'Please provide at least one DICOM file.'], 422);
         }
 
-        $patient = Patient::firstOrCreate(
-            ['medical_record_number' => $request->medical_record_number],
-            ['name' => $request->patient_name, 'birth_date' => $request->birth_date]
-        );
+        $patient = null;
+        if ($request->filled('patient_id')) {
+            $patient = Patient::find($request->patient_id);
+        }
+
+        if (!$patient) {
+            if (!$request->filled('medical_record_number') || !$request->filled('patient_name')) {
+                return response()->json(['message' => 'Nama Pasien dan Nomor Rekam Medis wajib diisi.'], 422);
+            }
+
+            $patient = Patient::firstOrCreate(
+                ['medical_record_number' => $request->medical_record_number],
+                [
+                    'name' => $request->patient_name, 
+                    'birth_date' => $request->birth_date ?: '1990-01-01',
+                    'order_status' => 'image_acquired'
+                ]
+            );
+        }
+
+        // Update status to image_acquired
+        $patient->order_status = 'image_acquired';
+        $patient->save();
 
         $uploadedFiles = [];
         $filesToProcess = [];
@@ -72,6 +92,8 @@ class DicomController extends Controller
                 'file_path' => $filePath,
                 'priority' => $priority,
                 'modality' => $fileModality,
+                'order_number' => $patient->order_number,
+                'accession_number' => $patient->order_number,
             ]);
 
             $uploadedFiles[] = $dicomFile;
@@ -79,6 +101,7 @@ class DicomController extends Controller
 
         return response()->json([
             'message' => count($uploadedFiles) . ' DICOM file(s) uploaded successfully',
+            'patient' => $patient,
             'dicom' => $uploadedFiles[0],
             'files' => $uploadedFiles
         ]);

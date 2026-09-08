@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Folder, CheckCircle, AlertCircle, FilePlus, ArrowLeft, HardDrive, Search, Filter, SearchX, X } from 'lucide-react';
 
-export default function RouterImportModal({ onClose, onImportSuccess }) {
+export default function RouterImportModal({ onClose, onImportSuccess, selectedPatient = null }) {
   const [rootPath, setRootPath] = useState('');
   const [currentPath, setCurrentPath] = useState('');
   const [contents, setContents] = useState([]);
@@ -10,7 +10,7 @@ export default function RouterImportModal({ onClose, onImportSuccess }) {
   const [importMessage, setImportMessage] = useState({ type: '', text: '' });
 
   // Search & Filter State
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(selectedPatient?.medical_record_number || '');
   const [typeFilter, setTypeFilter] = useState('all');
 
   useEffect(() => {
@@ -35,7 +35,9 @@ export default function RouterImportModal({ onClose, onImportSuccess }) {
   const browse = async (subPath = '') => {
     setLoading(true);
     setImportMessage({ type: '', text: '' });
-    setSearchQuery('');
+    if (!selectedPatient) {
+      setSearchQuery('');
+    }
     
     try {
       const res = await axios.get('/dicom-router/browse', { params: { path: subPath } });
@@ -91,12 +93,19 @@ export default function RouterImportModal({ onClose, onImportSuccess }) {
 
         {/* Modal Header */}
         <div className="flex justify-between items-center p-6 border-b border-white/10 relative z-10 bg-black/20">
-          <h2 className="text-xl font-bold text-white flex items-center">
-            <div className="w-10 h-10 rounded-xl bg-[#00e5ff]/20 border border-[#00e5ff]/30 flex items-center justify-center mr-3">
-              <Folder className="w-5 h-5 text-[#00e5ff]" />
-            </div>
-            Import from DICOM Server
-          </h2>
+          <div>
+            <h2 className="text-xl font-bold text-white flex items-center">
+              <div className="w-10 h-10 rounded-xl bg-[#00e5ff]/20 border border-[#00e5ff]/30 flex items-center justify-center mr-3">
+                <Folder className="w-5 h-5 text-[#00e5ff]" />
+              </div>
+              {selectedPatient ? `Cari Citra: ${selectedPatient.name}` : 'Import from DICOM Server'}
+            </h2>
+            {selectedPatient && (
+              <p className="text-xs text-sky-400 mt-1 ml-13 font-mono">
+                No. RM: {selectedPatient.medical_record_number} {selectedPatient.requested_procedure ? `• ${selectedPatient.requested_procedure}` : ''}
+              </p>
+            )}
+          </div>
           <button 
             onClick={onClose}
             className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-[#888] hover:text-white transition-colors"
