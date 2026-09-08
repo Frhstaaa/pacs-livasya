@@ -102,7 +102,7 @@ export default function IntegrationPanel() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('/api/integration/settings', {
+      const res = await axios.get('/integration/settings', {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       const data = res.data;
@@ -130,14 +130,16 @@ export default function IntegrationPanel() {
       if (logFilterStatus !== 'all') params.status = logFilterStatus;
       if (logSearch) params.search = logSearch;
 
-      const res = await axios.get('/api/integration/logs', {
+      const res = await axios.get('/integration/logs', {
         params,
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      setLogs(res.data.data || []);
-      setLogSummary(res.data.summary || {});
+      const data = res.data;
+      setLogs(Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []));
+      setLogSummary(data?.summary || {});
     } catch (err) {
       console.error('Failed to load integration logs:', err);
+      setLogs([]);
     } finally {
       setLoadingLogs(false);
     }
@@ -180,7 +182,7 @@ export default function IntegrationPanel() {
     setSaveSuccess(false);
     try {
       const token = localStorage.getItem('token');
-      await axios.post('/api/integration/settings', form, {
+      await axios.post('/integration/settings', form, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       setSaveSuccess(true);
@@ -200,7 +202,7 @@ export default function IntegrationPanel() {
     setFhirTestResult(null);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.post('/api/integration/test-fhir', {
+      const res = await axios.post('/integration/test-fhir', {
         client_id: form.fhir_client_id,
         client_secret: form.fhir_client_secret,
         auth_url: form.fhir_auth_url
@@ -224,7 +226,7 @@ export default function IntegrationPanel() {
     setSimrsTestResult(null);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.post('/api/integration/test-simrs', {
+      const res = await axios.post('/integration/test-simrs', {
         mode: form.simrs_mode,
         base_url: form.simrs_base_url,
         auth_type: form.simrs_auth_type,
@@ -255,7 +257,7 @@ export default function IntegrationPanel() {
     setSyncResult(null);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.post('/api/integration/sync-orders', {}, {
+      const res = await axios.post('/integration/sync-orders', {}, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       setSyncResult({ success: true, message: res.data.message });
@@ -272,7 +274,7 @@ export default function IntegrationPanel() {
     setResendingLogId(id);
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`/api/integration/logs/${id}/resend`, {}, {
+      await axios.post(`/integration/logs/${id}/resend`, {}, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       fetchLogs();
@@ -288,12 +290,14 @@ export default function IntegrationPanel() {
     setLoadingDispatcherPatients(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('/api/patients', {
+      const res = await axios.get('/patients', {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      setDispatcherPatients(res.data || []);
+      const data = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.data) ? res.data.data : []);
+      setDispatcherPatients(data);
     } catch (err) {
       console.error('Failed to load patients for dispatcher:', err);
+      setDispatcherPatients([]);
     } finally {
       setLoadingDispatcherPatients(false);
     }
@@ -316,7 +320,7 @@ export default function IntegrationPanel() {
     setNikSearchResult(null);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.post('/api/integration/satusehat/lookup-patient', {
+      const res = await axios.post('/integration/satusehat/lookup-patient', {
         nik: nikToSearch,
         patient_id: patientIdToLink || undefined,
       }, {
@@ -340,7 +344,7 @@ export default function IntegrationPanel() {
     setPreviewPayload(null);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get(`/api/integration/satusehat/preview-imaging-study/${patientId}`, {
+      const res = await axios.get(`/integration/satusehat/preview-imaging-study/${patientId}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       setPreviewPayload(res.data);
@@ -358,7 +362,7 @@ export default function IntegrationPanel() {
     setDispatchStatusAlert(null);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.post(`/api/integration/satusehat/send-imaging-study/${patientId}`, {}, {
+      const res = await axios.post(`/integration/satusehat/send-imaging-study/${patientId}`, {}, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       setDispatchStatusAlert({
@@ -386,7 +390,7 @@ export default function IntegrationPanel() {
     setDispatchStatusAlert(null);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.post(`/api/integration/satusehat/send-diagnostic-report/${patientId}`, {}, {
+      const res = await axios.post(`/integration/satusehat/send-diagnostic-report/${patientId}`, {}, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       setDispatchStatusAlert({
@@ -936,7 +940,7 @@ export default function IntegrationPanel() {
                   </p>
                 </div>
                 <span className="text-xs text-slate-400 font-mono">
-                  {dispatcherPatients.length} Pasien Terdaftar
+                  {Array.isArray(dispatcherPatients) ? dispatcherPatients.length : 0} Pasien Terdaftar
                 </span>
               </div>
 
@@ -945,7 +949,7 @@ export default function IntegrationPanel() {
                   <RefreshCw className="w-6 h-6 animate-spin text-sky-400 mb-2" />
                   <span className="text-xs">Memuat daftar pasien radiologi...</span>
                 </div>
-              ) : dispatcherPatients.length === 0 ? (
+              ) : (!Array.isArray(dispatcherPatients) || dispatcherPatients.length === 0) ? (
                 <div className="py-10 text-center text-slate-500 text-xs">
                   Belum ada data pasien atau berkas pemeriksaan radiologi.
                 </div>
@@ -962,12 +966,13 @@ export default function IntegrationPanel() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-medium">
-                      {dispatcherPatients.map((patient) => {
-                        const hasFiles = patient.dicom_files && patient.dicom_files.length > 0;
+                      {(Array.isArray(dispatcherPatients) ? dispatcherPatients : []).map((patient) => {
+                        const files = patient.dicom_files || patient.dicomFiles || [];
+                        const hasFiles = files.length > 0;
                         const hasIhs = Boolean(patient.satusehat_ihs_id);
                         const isStudySynced = Boolean(patient.satusehat_imaging_study_id);
-                        const primaryDicom = hasFiles ? patient.dicom_files[0] : null;
-                        const report = hasFiles ? patient.dicom_files.find(f => f.report)?.report : null;
+                        const primaryDicom = hasFiles ? files[0] : null;
+                        const report = hasFiles ? files.find(f => f.report)?.report : null;
                         const isReportVerified = Boolean(report?.is_verified);
                         const isReportSynced = Boolean(report?.satusehat_report_id);
 

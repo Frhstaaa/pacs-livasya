@@ -93,7 +93,7 @@ export default function TatDashboard() {
       if (endDate) params.end_date = endDate;
 
       const token = localStorage.getItem('token');
-      const response = await axios.get('/api/tat/dashboard', {
+      const response = await axios.get('/tat/dashboard', {
         params,
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
