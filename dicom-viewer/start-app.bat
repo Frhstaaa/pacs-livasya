@@ -1,17 +1,29 @@
 @echo off
-echo Starting DICOM Viewer Application...
+cd /d "%~dp0"
+title DICOM Viewer Launcher
 
+echo ========================================================
+echo Memulai DICOM Viewer Application (Monorepo)
+echo ========================================================
+echo.
 
-:: Start the Laravel Backend in a new window
-echo Starting Backend...
-start "DICOM Backend" cmd.exe /k "cd backend && php artisan serve --host=0.0.0.0 --port=8001"
+:: Start Laravel Backend Server on Port 8005
+echo [1/2] Menjalankan Laravel Server (Port 8005)...
+start "DICOM - Laravel Server (Port 8005)" cmd.exe /k "cd /d ""%~dp0"" && php artisan serve --host=0.0.0.0 --port=8005"
 
-:: Start the Vite Frontend in a new window (Production Mode for High Performance)
-echo Starting Frontend...
-start "DICOM Frontend" cmd.exe /k "cd frontend && npm run build && npm run preview"
+:: Start Vite Development Server on Port 5174
+echo [2/2] Menjalankan Vite Dev Server (Port 5174)...
+start "DICOM - Vite Server (Port 5174)" cmd.exe /k "cd /d ""%~dp0"" && call npm.cmd run dev"
 
-echo ----------------------------------------------------
-echo Backend and Frontend are starting in separate windows.
-echo You can close this window once they are running.
-echo ----------------------------------------------------
+echo.
+echo --------------------------------------------------------
+echo Server aktif dan siap digunakan!
+echo.
+echo Silakan buka browser di:
+echo    👉 http://localhost:8005
+echo.
+echo Akses dari LAN / Jaringan:
+echo    👉 http://[IP-KOMPUTER]:8005
+echo --------------------------------------------------------
+echo.
 pause

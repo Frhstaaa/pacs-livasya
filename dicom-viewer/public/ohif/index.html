@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+
+  <meta name="description" content="Open Health Imaging Foundation DICOM Viewer" />
+  <meta name="viewport"
+    content="width=device-width,initial-scale=1.0,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+  <meta name="theme-color" content="#000000" />
+  <meta http-equiv="cleartype" content="on" />
+  <meta name="MobileOptimized" content="320" />
+  <meta name="HandheldFriendly" content="True" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+
+
+  <title>OHIF Standalone Viewer</title>
+  <style>
+    html, body {
+      overflow-x: hidden !important;
+      width: 100vw;
+    }
+    /* Ensure OHIF Toolbar and its dropdown popups (Layout, More, etc.) are always visible and on top */
+    .ToolbarRow, .toolbarRow, .toolbar-row {
+      overflow: visible !important;
+      z-index: 10000 !important;
+      position: relative !important;
+      display: flex !important;
+      align-items: center !important;
+      padding-top: 10px !important;
+      padding-bottom: 6px !important;
+      border-bottom: 1px solid rgba(0, 229, 255, 0.25) !important;
+    }
+
+    .ToolbarRow > *, .toolbarRow > *, .toolbar-row > * {
+      flex-shrink: 0 !important;
+    }
+
+    /* Make OHIF Toolbar smoothly scrollable if needed on very small widths while keeping dropdowns visible */
+    @media (max-width: 600px) {
+      .ToolbarRow, .toolbarRow, .toolbar-row {
+        overflow-x: auto !important;
+        overflow-y: visible !important;
+        flex-wrap: nowrap !important;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 8px !important;
+      }
+      .ToolbarRow::-webkit-scrollbar, .toolbarRow::-webkit-scrollbar, .toolbar-row::-webkit-scrollbar {
+        display: none;
+      }
+    }
+
+    /* Container for buttons */
+    .btn-group, .btn-group-vertical {
+      position: relative !important;
+      overflow: visible !important;
+      z-index: 10001 !important;
+    }
+
+    /* CRITICAL: Respect inline display: none so the dropdown can close properly */
+    .layoutChooser[style*="display: none"],
+    .layoutChooser-dropdown-menu[style*="display: none"],
+    [class*="layoutChooser"][style*="display: none"] {
+      display: none !important;
+    }
+
+    /* Layout Chooser Popup styling & positioning: on top, right-aligned, sleek medical theme */
+    .layoutChooser, 
+    .layoutChooser-dropdown-menu,
+    [class*="layoutChooser"] {
+      position: absolute !important;
+      top: calc(100% + 6px) !important;
+      right: 0 !important;
+      left: auto !important;
+      width: 172px !important;
+      min-width: 172px !important;
+      max-width: 172px !important;
+      z-index: 999999 !important;
+      background: #0f141c !important;
+      border: 1.5px solid #00e5ff !important;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.9), 0 0 25px rgba(0, 229, 255, 0.25) !important;
+      border-radius: 12px !important;
+      padding: 12px 14px 10px 14px !important;
+      box-sizing: border-box !important;
+      user-select: none !important;
+    }
+
+    /* Title header inside Layout Chooser */
+    .layoutChooser::before {
+      content: "PILIH LAYOUT";
+      display: block;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #00e5ff;
+      text-transform: uppercase;
+      text-align: left;
+      margin-bottom: 8px;
+      padding-bottom: 5px;
+      padding-right: 22px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Close (X) button inside Layout Chooser */
+    .layout-close-btn {
+      position: absolute !important;
+      top: 8px !important;
+      right: 8px !important;
+      background: transparent !important;
+      border: none !important;
+      color: #94a3b8 !important;
+      font-size: 16px !important;
+      font-weight: 700 !important;
+      line-height: 1 !important;
+      cursor: pointer !important;
+      padding: 2px 6px !important;
+      border-radius: 4px !important;
+      transition: all 0.15s ease !important;
+      z-index: 10 !important;
+    }
+    .layout-close-btn:hover {
+      color: #ff4757 !important;
+      background: rgba(255, 71, 87, 0.15) !important;
+    }
+
+    .layoutChooser table {
+      border-collapse: separate !important;
+      border-spacing: 6px !important;
+      margin: 4px auto !important;
+      width: auto !important;
+      table-layout: fixed !important;
+    }
+
+    /* Individual viewport cell: beautiful 4:3 monitor screen aspect ratio */
+    .layoutChooser table td {
+      width: 40px !important;
+      height: 30px !important;
+      min-width: 40px !important;
+      max-width: 40px !important;
+      min-height: 30px !important;
+      max-height: 30px !important;
+      border: 1.5px solid #334155 !important;
+      background-color: #1e293b !important;
+      border-radius: 6px !important;
+      cursor: pointer !important;
+      transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1) !important;
+      box-sizing: border-box !important;
+    }
+
+    .layoutChooser table td:hover,
+    .layoutChooser table td.hover {
+      background-color: rgba(0, 229, 255, 0.3) !important;
+      border-color: #00e5ff !important;
+      box-shadow: 0 0 10px rgba(0, 229, 255, 0.7), inset 0 0 6px rgba(0, 229, 255, 0.35) !important;
+      transform: scale(1.06) !important;
+    }
+
+    .layoutChooser table td.selectedBefore {
+      background-color: rgba(0, 229, 255, 0.45) !important;
+      border-color: #00e5ff !important;
+    }
+
+    /* Helper label at the bottom of Layout Chooser */
+    .layoutChooser::after {
+      content: "1×1  •  1×2  •  2×2";
+      display: block;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 9.5px;
+      font-weight: 500;
+      color: #64748b;
+      text-align: center;
+      margin-top: 8px;
+      padding-top: 5px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* Generic dropdown and popover protection */
+    .dropdown-menu,
+    .popover,
+    .tooltip,
+    .options_container {
+      z-index: 999999 !important;
+      overflow: visible !important;
+    }
+
+    /* Ensure viewports sit underneath the toolbar dropdowns */
+    .FlexboxLayout,
+    .ViewerMain,
+    .viewer-main,
+    .ViewportGrid,
+    .viewport-grid {
+      z-index: 1 !important;
+    }
+
+    /* Hide everything above the DICOM Viewer Menu (Toolbar) */
+    .notification-bar,
+    .entry-header,
+    .ViewerHeader,
+    .header-brand,
+    .research-use {
+      display: none !important;
+    }
+
+    /* Hide the left Series panel and right Measurement panel */
+    .sidepanel,
+    .pull-right,
+    .pull-left,
+    .scrollable-study-thumbnails,
+    .measurement-table,
+    .left-sidebar,
+    .right-sidebar {
+      display: none !important;
+    }
+
+    /* Hide the top-right overlay that says "Invalid date Invalid date" */
+    .viewport-overlay,
+    .ViewportOverlay,
+    .top-right,
+    .bottom-right,
+    .top-left,
+    .bottom-left,
+    .cornerstone-text,
+    .viewportOverlay {
+      display: none !important;
+    }
+
+    /* Make sure the viewer container expands to fill the entire space */
+    .ViewerMain {
+      width: 100% !important;
+      height: 100% !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+  </style>
+</head>
+
+<body>
+  <noscript> You need to enable JavaScript to run this app. </noscript>
+
+  <div id="root"></div>
+
+  <script type="text/javascript" src="./app-config.js"></script>
+  <script src="./index.umd.js" crossorigin></script>
+  <script>
+    var containerId = 'root';
+    var componentRenderedOrUpdatedCallback = function () {
+      console.log('OHIF Viewer rendered/updated');
+      
+      // Attempt to hide side panels by simulating clicks on active toolbar buttons, 
+      // and trigger resize so the canvas fills the space.
+      var adjustUI = function() {
+        try {
+          // Hide text overlays
+          var overlays = document.querySelectorAll('.viewport-overlay, .ViewportOverlay');
+          overlays.forEach(function(el) { el.style.display = 'none'; });
+
+          // Find and click the 'Series' and 'Measurements' toggle buttons if they are active
+          var activeButtons = document.querySelectorAll('.toolbar-button.active, .ToolbarButton.active');
+          activeButtons.forEach(function(btn) {
+             btn.click();
+          });
+
+          // Hide the Series and Measurement buttons from the toolbar
+          var allButtons = document.querySelectorAll('button, .toolbar-button, .ToolbarButton, [class*="button"]');
+          allButtons.forEach(function(btn) {
+             var text = (btn.innerText || '').toLowerCase();
+             if (text.includes('series') || text.includes('measurement') || text.includes('measure')) {
+                 btn.style.display = 'none';
+             }
+             
+             // PATCH: The Reset button restores the viewport to its original state (when side panels were open).
+             // This makes the image tiny. By dispatching a resize event right after, Cornerstone will auto-fit 
+             // the image to the new full-screen container size properly.
+             if (text.includes('reset') && !btn.dataset.resetPatched) {
+                 btn.dataset.resetPatched = 'true';
+                 btn.addEventListener('click', function() {
+                     setTimeout(function() {
+                         window.dispatchEvent(new Event('resize'));
+                     }, 50);
+                     setTimeout(function() {
+                         window.dispatchEvent(new Event('resize'));
+                     }, 150);
+                 });
+             }
+          });
+          
+          // Trigger a window resize to force cornerstone to redraw and fill the new space
+          window.dispatchEvent(new Event('resize'));
+        } catch (e) {
+          console.log('Error adjusting UI', e);
+        }
+      };
+
+      // Run multiple times to catch dynamic rendering
+      setTimeout(adjustUI, 500);
+      setTimeout(adjustUI, 1500);
+      setTimeout(adjustUI, 3000);
+    };
+    window.OHIFViewer.installViewer(
+      window.config, // See `/config/default.js`
+      containerId,
+      componentRenderedOrUpdatedCallback
+    );
+
+    // =========================================================================
+    // LAYOUT CHOOSER UX FIXES: Outside Click, Cell Selection, Close Button, Esc
+    // =========================================================================
+    (function() {
+      function closeLayoutChooser() {
+        var chooser = document.querySelector('.layoutChooser, .layoutChooser-dropdown-menu');
+        if (!chooser) return;
+        chooser.style.display = 'none';
+
+        var layoutBtn = document.querySelector('.ToolbarRow [class*="layout"], .ToolbarRow [class*="Layout"]');
+        if (layoutBtn) {
+          var btn = layoutBtn.querySelector('button') || layoutBtn;
+          if (btn.classList && btn.classList.contains('active')) {
+            btn.click();
+          }
+        }
+      }
+
+      // 1. Click outside layout chooser -> Close
+      document.addEventListener('pointerdown', function(e) {
+        var chooser = document.querySelector('.layoutChooser, .layoutChooser-dropdown-menu');
+        if (!chooser || chooser.style.display === 'none' || getComputedStyle(chooser).display === 'none') return;
+        
+        var layoutBtn = document.querySelector('.ToolbarRow [class*="layout"], .ToolbarRow [class*="Layout"]');
+        if (!chooser.contains(e.target) && (!layoutBtn || !layoutBtn.contains(e.target))) {
+          closeLayoutChooser();
+        }
+      });
+
+      // 2. Press Escape key -> Close
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          closeLayoutChooser();
+        }
+      });
+
+      // 3. Click any cell in the Layout Chooser grid -> auto close
+      document.addEventListener('click', function(e) {
+        if (e.target && e.target.closest && e.target.closest('.layoutChooser table td')) {
+          setTimeout(closeLayoutChooser, 100);
+        }
+      });
+
+      // 4. Window blur (e.g. clicking into the report panel outside iframe) -> Close
+      window.addEventListener('blur', function() {
+        closeLayoutChooser();
+      });
+
+      // 5. MutationObserver to inject the (X) Close button into .layoutChooser
+      var observer = new MutationObserver(function() {
+        var chooser = document.querySelector('.layoutChooser, .layoutChooser-dropdown-menu');
+        if (chooser && !chooser.querySelector('.layout-close-btn')) {
+          var closeBtn = document.createElement('button');
+          closeBtn.className = 'layout-close-btn';
+          closeBtn.innerHTML = '&times;';
+          closeBtn.title = 'Tutup';
+          closeBtn.type = 'button';
+          closeBtn.addEventListener('click', function(ev) {
+            ev.stopPropagation();
+            ev.preventDefault();
+            closeLayoutChooser();
+          });
+          chooser.appendChild(closeBtn);
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    })();
+  </script>
+</body>
+
+</html>
