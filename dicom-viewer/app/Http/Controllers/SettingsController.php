@@ -27,6 +27,7 @@ class SettingsController extends Controller
 
         return response()->json([
             'app_name' => $this->getSetting('app_name') ?? 'DICOM PACS',
+            'hospital_name' => $this->getSetting('hospital_name') ?? 'RSIA Livasya Majalengka',
             'app_logo' => $logoBase64,
         ]);
     }
@@ -35,6 +36,7 @@ class SettingsController extends Controller
     {
         $request->validate([
             'app_name' => 'nullable|string|max:255',
+            'hospital_name' => 'nullable|string|max:255',
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,svg|max:2048', // max 2MB
         ]);
 
@@ -42,6 +44,13 @@ class SettingsController extends Controller
             Setting::updateOrCreate(
                 ['key' => 'app_name'],
                 ['value' => $request->app_name]
+            );
+        }
+
+        if ($request->has('hospital_name')) {
+            Setting::updateOrCreate(
+                ['key' => 'hospital_name'],
+                ['value' => $request->hospital_name]
             );
         }
 

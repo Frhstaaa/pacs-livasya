@@ -11,7 +11,7 @@ import RouterImportModal from '../components/RouterImportModal';
 export default function PatientList() {
   const navigate = useNavigate();
   const { user, can } = useAuth();
-  const { appLogo } = useAppContext();
+  const { appLogo, appName, hospitalName } = useAppContext();
   
   // Data State
   const [patients, setPatients] = useState([]);
@@ -129,6 +129,8 @@ export default function PatientList() {
           patient={pdfData.patient}
           doctor={pdfData.doctor}
           appLogo={appLogo}
+          appName={appName}
+          hospitalName={hospitalName}
           capturedImage={pdfData.capturedImage}
           relatedFiles={pdfData.relatedFiles}
         />

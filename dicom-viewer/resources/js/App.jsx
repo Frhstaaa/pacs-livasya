@@ -14,7 +14,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 function Layout({ children }) {
   const { user, logout, can } = useAuth();
-  const { appName, appLogo } = useAppContext();
+  const { appName, hospitalName, appLogo } = useAppContext();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -64,8 +64,8 @@ function Layout({ children }) {
             <span className="font-extrabold text-base text-white tracking-tight truncate leading-tight" title={appName}>
               {appName || 'DICOM PACS'}
             </span>
-            <span className="text-[10px] text-sky-400 font-semibold tracking-wider uppercase truncate mt-0.5">
-              RSIA Livasya Majalengka
+            <span className="text-[10px] text-sky-400 font-semibold tracking-wider uppercase truncate mt-0.5" title={hospitalName}>
+              {hospitalName || 'RSIA Livasya Majalengka'}
             </span>
           </div>
         </div>
@@ -141,17 +141,17 @@ function Layout({ children }) {
 
       {/* Mobile Top Navbar */}
       <header className="md:hidden flex items-center justify-between px-4 h-15 shrink-0 bg-[#0e1424] border-b border-[#1e293b] z-40 shadow-lg relative">
-        <div className="flex items-center">
+        <div className="flex items-center min-w-0">
           {appLogo ? (
-            <img src={appLogo} alt="App Logo" className="h-7 w-auto rounded object-contain" />
+            <img src={appLogo} alt="App Logo" className="h-7 w-auto rounded object-contain shrink-0" />
           ) : (
-            <div className="bg-gradient-to-tr from-sky-600 to-blue-600 p-1.5 rounded-lg shadow-sm">
+            <div className="bg-gradient-to-tr from-sky-600 to-blue-600 p-1.5 rounded-lg shadow-sm shrink-0">
               <Stethoscope className="w-4 h-4 text-white" />
             </div>
           )}
-          <div className="ml-2.5 flex flex-col">
-            <span className="font-bold text-sm text-white tracking-tight leading-tight">{appName}</span>
-            <span className="text-[9px] text-sky-400 font-semibold uppercase tracking-wider">RSIA Livasya</span>
+          <div className="ml-2.5 flex flex-col min-w-0">
+            <span className="font-bold text-sm text-white tracking-tight leading-tight truncate max-w-[140px]">{appName || 'DICOM PACS'}</span>
+            <span className="text-[9px] text-sky-400 font-semibold uppercase tracking-wider truncate max-w-[140px]">{hospitalName || 'RSIA Livasya'}</span>
           </div>
         </div>
         

@@ -36,7 +36,7 @@ import ReportTemplateModal from '../components/ReportTemplateModal';
 export default function Viewer() {
   const { uuid } = useParams();
   const { user, can } = useAuth();
-  const { appLogo } = useAppContext();
+  const { appLogo, appName, hospitalName } = useAppContext();
   
   const [report, setReport] = useState('');
   const [reportData, setReportData] = useState(null);
@@ -932,6 +932,8 @@ export default function Viewer() {
         patient={patientData}
         doctor={doctorData || user}
         appLogo={appLogo}
+        appName={appName}
+        hospitalName={hospitalName}
         capturedImage={capturedImage || reportData?.snapshot_url}
         relatedFiles={relatedFiles}
       />

@@ -32,8 +32,9 @@ export default function SuperadminPanel() {
   const [signaturePreview, setSignaturePreview] = useState(null);
 
   // App Customization State
-  const { appName, appLogo, refreshSettings } = useAppContext();
+  const { appName, hospitalName, appLogo, refreshSettings } = useAppContext();
   const [settingAppName, setSettingAppName] = useState('');
+  const [settingHospitalName, setSettingHospitalName] = useState('');
   const [settingLogoFile, setSettingLogoFile] = useState(null);
   const [settingLogoPreview, setSettingLogoPreview] = useState(null);
   const [settingMessage, setSettingMessage] = useState({ type: '', text: '' });
@@ -65,12 +66,13 @@ export default function SuperadminPanel() {
   useEffect(() => {
     if (activeTab === 'settings') {
       setSettingAppName(appName || '');
+      setSettingHospitalName(hospitalName || '');
       setSettingLogoPreview(appLogo || null);
       setSettingMessage({ type: '', text: '' });
     } else if (activeTab === 'permissions') {
       fetchPermissions();
     }
-  }, [activeTab, appName, appLogo]);
+  }, [activeTab, appName, hospitalName, appLogo]);
 
   useEffect(() => {
     if (selectedUserId) {
@@ -314,6 +316,7 @@ export default function SuperadminPanel() {
 
     const formData = new FormData();
     formData.append('app_name', settingAppName);
+    formData.append('hospital_name', settingHospitalName);
     if (settingLogoFile) {
       formData.append('logo', settingLogoFile);
     }
@@ -1268,22 +1271,68 @@ export default function SuperadminPanel() {
             )}
 
             <form onSubmit={handleSaveSettings} className="space-y-6">
-              {/* App Name */}
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                  Nama Aplikasi / Rumah Sakit *
-                </label>
-                <input 
-                  type="text" 
-                  value={settingAppName}
-                  onChange={e => setSettingAppName(e.target.value)}
-                  placeholder="e.g. PACS RSIA LIVASYA"
-                  className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-semibold transition-all"
-                  required 
-                />
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Nama ini akan muncul pada tab peramban, header navigasi, dan kop surat ekspertise.
-                </p>
+              {/* Live Header Preview */}
+              <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 space-y-2">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Eye className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Pratinjau Langsung Tampilan Header</span>
+                </div>
+                <div className="flex items-center px-4 py-3 rounded-xl bg-[#0e1424] border border-[#1e293b] w-fit min-w-[260px] shadow-lg">
+                  {settingLogoPreview ? (
+                    <img src={settingLogoPreview} alt="App Logo" className="h-8 w-auto rounded object-contain" />
+                  ) : (
+                    <div className="bg-gradient-to-tr from-sky-600 to-blue-600 p-2 rounded-xl shadow-[0_0_12px_rgba(14,165,233,0.3)]">
+                      <Stethoscope className="w-5 h-5 text-white" />
+                    </div>
+                  )}
+                  <div className="ml-3 flex flex-col min-w-0">
+                    <span className="font-extrabold text-sm text-white tracking-tight leading-tight truncate">
+                      {settingAppName || 'DICOM PACS'}
+                    </span>
+                    <span className="text-[10px] text-sky-400 font-semibold tracking-wider uppercase truncate mt-0.5">
+                      {settingHospitalName || 'RSIA Livasya Majalengka'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid 2 Column for App Name and Hospital Name */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* App Name */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                    Nama Aplikasi / Sistem (Baris Atas) *
+                  </label>
+                  <input 
+                    type="text" 
+                    value={settingAppName}
+                    onChange={e => setSettingAppName(e.target.value)}
+                    placeholder="e.g. DICOM PACS"
+                    className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-semibold transition-all"
+                    required 
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Tampil pada baris atas judul header dan tab browser.
+                  </p>
+                </div>
+
+                {/* Hospital Name */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                    Nama Rumah Sakit / Faskes (Baris Bawah) *
+                  </label>
+                  <input 
+                    type="text" 
+                    value={settingHospitalName}
+                    onChange={e => setSettingHospitalName(e.target.value)}
+                    placeholder="e.g. RSIA LIVASYA MAJALENGKA"
+                    className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-semibold transition-all"
+                    required 
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Tampil pada baris bawah berwarna biru muda dan kop laporan.
+                  </p>
+                </div>
               </div>
 
               {/* App Logo */}

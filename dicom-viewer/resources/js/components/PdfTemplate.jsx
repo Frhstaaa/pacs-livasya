@@ -7,6 +7,8 @@ export const PdfTemplate = React.forwardRef(({
   patient, 
   doctor, 
   appLogo, 
+  appName = 'DICOM PACS',
+  hospitalName = 'RSIA LIVASYA MAJALENGKA',
   capturedImage,
   relatedFiles
 }, ref) => {
@@ -84,11 +86,11 @@ export const PdfTemplate = React.forwardRef(({
             {appLogo ? (
               <img src={appLogo} alt="Logo" style={{ width: '100%', objectFit: 'contain' }} />
             ) : (
-              <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#0077ff' }}>RSIA LIVASYA</div>
+              <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#0077ff' }}>{(hospitalName || 'RSIA LIVASYA').toUpperCase()}</div>
             )}
           </div>
           <div style={{ textAlign: 'right', fontSize: '8.5pt', borderLeft: '2px solid #0077ff', paddingLeft: '15px' }}>
-            <div style={{ fontWeight: 'bold', fontSize: '9.5pt', color: '#0077ff' }}>RSIA LIVASYA MAJALENGKA</div>
+            <div style={{ fontWeight: 'bold', fontSize: '9.5pt', color: '#0077ff' }}>{(hospitalName || 'RSIA LIVASYA MAJALENGKA').toUpperCase()}</div>
             <div style={{ color: '#444' }}>Jl. Raya Timur III Dawuan No. 875 Kab. Majalengka</div>
             <div style={{ color: '#444' }}>Jawa Barat - Indonesia | Telp : 081211151300</div>
             <div style={{ color: '#444' }}>Email : rsialivasya114@gmail.com | https://livasya.id/</div>
@@ -315,9 +317,9 @@ export const PdfTemplate = React.forwardRef(({
         {/* BOTTOM METADATA */}
         <div style={{ position: 'absolute', bottom: '12mm', left: '20mm', right: '20mm', display: 'flex', justifyContent: 'space-between', fontSize: '7pt', color: '#666', borderTop: '1px solid #ddd', paddingTop: '4px' }}>
           <div>
-            RSIA LIVASYA PACS/RIS &bull; {report?.is_verified ? `Verifikasi Digital: ${report.verification_token}` : 'DRAFT HASIL - Belum Diverifikasi'}
+            {(hospitalName || 'RSIA LIVASYA').toUpperCase()} {(appName || 'PACS/RIS').toUpperCase()} &bull; {report?.is_verified ? `Verifikasi Digital: ${report.verification_token}` : 'DRAFT HASIL - Belum Diverifikasi'}
           </div>
-          <div>Dokumen Sah RSIA Livasya Majalengka &bull; Hal 1/1</div>
+          <div>Dokumen Sah {hospitalName || 'RSIA Livasya Majalengka'} &bull; Hal 1/1</div>
         </div>
         
       </div>
