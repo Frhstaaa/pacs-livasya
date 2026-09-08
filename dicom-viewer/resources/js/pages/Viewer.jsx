@@ -494,8 +494,9 @@ export default function Viewer() {
       }
 
     } catch (error) {
-      console.error(error);
-      setAiResult('Error communicating with AI API. Ensure your API key is correct and valid.');
+      console.warn('AI analysis error:', error);
+      const errMsg = error.response?.data?.error || error.response?.data?.message || 'Gagal berkomunikasi dengan server AI.';
+      setAiResult(`### ⚠️ Layanan AI Memerlukan Konfigurasi API Key\n\n${errMsg}\n\n---\n\n**Panduan Aktivasi Asisten AI Radiologi:**\n1. Buka file \`.env\` pada server aplikasi\n2. Tambahkan baris: \`OPENAI_API_KEY=sk-or-v1-...\` *(dapatkan API key gratis atau berbayar di openrouter.ai / openai.com)*\n3. Muat ulang halaman, maka fitur analisis radiologi AI akan langsung bekerja.`);
     } finally {
       setAiLoading(false);
     }

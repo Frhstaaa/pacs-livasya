@@ -38,10 +38,20 @@ class ReportController extends Controller
             }
         }
 
+        $existingReport = Report::where('dicom_file_id', $dicomFile->id)->first();
+        $content = $request->input('content');
+
         $data = [
             'doctor_id' => $request->user()->id,
-            'content' => $request->content,
         ];
+
+        if ($content !== null) {
+            $data['content'] = $content;
+        } elseif ($existingReport) {
+            $data['content'] = $existingReport->content ?? '';
+        } else {
+            $data['content'] = '';
+        }
 
         if ($snapshotPath) {
             $data['snapshot_path'] = $snapshotPath;
@@ -67,9 +77,14 @@ class ReportController extends Controller
             ->get();
 
         foreach ($relatedFiles as $rel) {
+            $relExisting = Report::where('dicom_file_id', $rel->id)->first();
+            $relData = $data;
+            if ($content === null && $relExisting) {
+                $relData['content'] = $relExisting->content ?? '';
+            }
             Report::updateOrCreate(
                 ['dicom_file_id' => $rel->id],
-                $data
+                $relData
             );
         }
 

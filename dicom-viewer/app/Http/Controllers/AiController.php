@@ -25,7 +25,7 @@ class AiController extends Controller
             $result = $this->aiService->analyzeImage($request->image);
             return response()->json(['analysis' => $result]);
         } catch (Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+            return response()->json(['error' => $e->getMessage()], 400);
         }
     }
 }

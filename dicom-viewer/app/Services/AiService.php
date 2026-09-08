@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
+use App\Models\Setting;
 use Exception;
 
 class AiService
@@ -16,13 +17,16 @@ class AiService
      */
     public function analyzeImage(string $base64Image): string
     {
-        $apiKey = env('OPENAI_API_KEY');
+        $apiKey = Setting::where('key', 'ai_api_key')->value('value') 
+            ?: Setting::where('key', 'openai_api_key')->value('value') 
+            ?: env('OPENAI_API_KEY') 
+            ?: env('OPENROUTER_API_KEY');
 
         if (!$apiKey) {
-            throw new Exception('OpenAI API key not configured.');
+            throw new Exception('Kunci API AI (OpenRouter / OpenAI) belum dikonfigurasi di sistem. Silakan tambahkan OPENAI_API_KEY di file .env.');
         }
 
-        $response = Http::withHeaders([
+        $response = Http::timeout(30)->withHeaders([
             'Authorization' => 'Bearer ' . $apiKey,
             'Content-Type' => 'application/json',
             'HTTP-Referer' => 'http://localhost:5173',
