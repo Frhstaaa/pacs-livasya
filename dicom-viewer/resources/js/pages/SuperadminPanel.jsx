@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Fragment } from 'react';
 import axios from 'axios';
 import { 
-  Shield, UserPlus, Edit2, Trash2, CheckCircle, AlertCircle, 
+  Shield, ShieldCheck, UserPlus, Edit2, Trash2, CheckCircle, AlertCircle, 
   RefreshCw, Search, Filter, SearchX, LayoutTemplate, 
   Image as ImageIcon, Save, Upload, User, Mail, Lock, 
   CheckCircle2, Eye, EyeOff, Users, Stethoscope, UserCheck,
