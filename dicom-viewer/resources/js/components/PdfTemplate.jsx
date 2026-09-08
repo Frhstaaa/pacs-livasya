@@ -154,7 +154,7 @@ export const PdfTemplate = React.forwardRef(({
                 </tr>
                 <tr>
                   <td style={{ paddingBottom: '6px', color: '#666' }}>Dokter Pengirim</td>
-                  <td style={{ paddingBottom: '6px' }}>: Dokter Poliklinik / IGD</td>
+                  <td style={{ paddingBottom: '6px' }}>: {patient?.referring_physician || 'Dokter Poliklinik / IGD'}</td>
                 </tr>
                 <tr>
                   <td style={{ paddingBottom: '6px', color: '#666' }}>Ruangan Pengirim</td>
@@ -180,6 +180,13 @@ export const PdfTemplate = React.forwardRef(({
                     : {relatedFiles && relatedFiles.length > 0 
                         ? `${relatedFiles.map(f => f.file_name).join(', ')} (${relatedFiles.length} Studi)`
                         : (dicomFile?.file_name || 'STUDI RADIOLOGI')}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ paddingBottom: '6px', fontWeight: 'bold', color: '#666' }}>Diagnosa / Klinis</td>
+                  <td style={{ paddingBottom: '6px', fontWeight: 'bold', color: '#111827' }}>
+                    : {patient?.clinical_diagnosis || patient?.clinical_notes || '-'}
+                    {patient?.icd10_code ? ` (ICD-10: ${patient.icd10_code})` : ''}
                   </td>
                 </tr>
               </tbody>

@@ -473,11 +473,25 @@ export default function PatientList() {
                           )}
                         </div>
 
-                        {patient.clinical_notes && (
+                        {(patient.clinical_diagnosis || patient.icd10_code) ? (
+                          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                            {patient.icd10_code && (
+                              <span 
+                                className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold"
+                                title={patient.icd10_name || 'Kode ICD-10'}
+                              >
+                                {patient.icd10_code}
+                              </span>
+                            )}
+                            <span className="text-[10px] text-slate-300 line-clamp-1" title={patient.clinical_diagnosis || patient.icd10_name}>
+                              {patient.clinical_diagnosis || patient.icd10_name}
+                            </span>
+                          </div>
+                        ) : patient.clinical_notes ? (
                           <div className="mt-1 text-[10px] text-slate-400 line-clamp-1 italic" title={patient.clinical_notes}>
                             &ldquo;{patient.clinical_notes}&rdquo;
                           </div>
-                        )}
+                        ) : null}
                       </td>
 
                       {/* Status */}
@@ -693,6 +707,19 @@ export default function PatientList() {
                     <div className="text-xs text-slate-300 flex items-center gap-1 font-semibold">
                       <Stethoscope className="w-3.5 h-3.5 text-sky-400 shrink-0" />
                       <span>{patient.requested_procedure}</span>
+                    </div>
+                  )}
+
+                  {(patient.clinical_diagnosis || patient.icd10_code) && (
+                    <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                      {patient.icd10_code && (
+                        <span className="font-mono px-1.5 py-0.2 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
+                          {patient.icd10_code}
+                        </span>
+                      )}
+                      <span className="text-slate-300 line-clamp-1">
+                        {patient.clinical_diagnosis || patient.icd10_name}
+                      </span>
                     </div>
                   )}
 

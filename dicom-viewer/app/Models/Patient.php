@@ -21,6 +21,9 @@ class Patient extends Model
         'requested_procedure',
         'referring_physician',
         'clinical_notes',
+        'clinical_diagnosis',
+        'icd10_code',
+        'icd10_name',
         'order_date',
         'order_status'
     ];

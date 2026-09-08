@@ -549,7 +549,26 @@ class IntegrationController extends Controller
 
                     if ($response->successful()) {
                         $json = $response->json();
-                        $rawOrders = is_array($json) ? ($json['data'] ?? $json) : [];
+                        $fetched = is_array($json) ? ($json['data'] ?? $json) : [];
+                        foreach ($fetched as $item) {
+                            $rawOrders[] = [
+                                'mrn' => $item['mrn'] ?? $item['no_rkm_medis'] ?? $item['medical_record_number'] ?? '',
+                                'name' => $item['name'] ?? $item['nm_pasien'] ?? $item['patient_name'] ?? '',
+                                'nik' => $item['nik'] ?? $item['no_ktp'] ?? '',
+                                'birth_date' => $item['birth_date'] ?? $item['tgl_lahir'] ?? null,
+                                'gender' => $item['gender'] ?? $item['jk'] ?? null,
+                                'address' => $item['address'] ?? $item['alamat'] ?? null,
+                                'encounter_id' => $item['encounter_id'] ?? $item['no_rawat'] ?? null,
+                                'order_number' => $item['order_number'] ?? $item['noorder'] ?? null,
+                                'requested_procedure' => $item['requested_procedure'] ?? $item['nama_pemeriksaan'] ?? 'Pemeriksaan Radiologi',
+                                'referring_physician' => $item['referring_physician'] ?? $item['dokter_perujuk'] ?? null,
+                                'clinical_notes' => $item['clinical_notes'] ?? $item['diagnosa_klinis'] ?? null,
+                                'clinical_diagnosis' => $item['clinical_diagnosis'] ?? $item['diagnosa_klinis'] ?? $item['diagnosa'] ?? null,
+                                'icd10_code' => $item['icd10_code'] ?? $item['kd_penyakit'] ?? $item['icd10'] ?? null,
+                                'icd10_name' => $item['icd10_name'] ?? $item['nm_penyakit'] ?? null,
+                                'order_date' => $item['order_date'] ?? now()->toDateTimeString(),
+                            ];
+                        }
                         $sourceType = 'simrs_rest';
                     }
                 } catch (\Throwable $e) {
@@ -571,7 +590,7 @@ class IntegrationController extends Controller
                     \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION
                 ]);
 
-                // Query SIMRS Khanza Permintaan Radiologi
+                // Query SIMRS Khanza Permintaan Radiologi + Diagnosa Primer (ICD-10)
                 $stmt = $pdo->query("
                     SELECT 
                         pr.noorder, 
@@ -587,12 +606,16 @@ class IntegrationController extends Controller
                         p.jk, 
                         p.tgl_lahir, 
                         p.alamat,
-                        COALESCE(jp.nm_perawatan, 'Pemeriksaan Radiologi') AS nama_pemeriksaan
+                        COALESCE(jp.nm_perawatan, 'Pemeriksaan Radiologi') AS nama_pemeriksaan,
+                        dp.kd_penyakit,
+                        pen.nm_penyakit
                     FROM permintaan_radiologi pr
                     JOIN reg_periksa rp ON pr.no_rawat = rp.no_rawat
                     JOIN pasien p ON rp.no_rkm_medis = p.no_rkm_medis
                     LEFT JOIN permintaan_pemeriksaan_radiologi ppr ON pr.noorder = ppr.noorder
                     LEFT JOIN jns_perawatan_radiologi jp ON ppr.kd_jenis_prw = jp.kd_jenis_prw
+                    LEFT JOIN diagnosa_pasien dp ON pr.no_rawat = dp.no_rawat AND dp.prioritas = '1'
+                    LEFT JOIN penyakit pen ON dp.kd_penyakit = pen.kd_penyakit
                     WHERE pr.tgl_permintaan >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
                     ORDER BY pr.tgl_permintaan DESC, pr.jam_permintaan DESC
                     LIMIT 30
@@ -601,6 +624,7 @@ class IntegrationController extends Controller
                 $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
                 if (!empty($rows)) {
                     foreach ($rows as $r) {
+                        $clinicalDiag = !empty($r['diagnosa_klinis']) ? $r['diagnosa_klinis'] : (!empty($r['nm_penyakit']) ? $r['nm_penyakit'] : null);
                         $rawOrders[] = [
                             'mrn' => $r['no_rkm_medis'],
                             'name' => $r['nm_pasien'],
@@ -613,6 +637,9 @@ class IntegrationController extends Controller
                             'requested_procedure' => $r['nama_pemeriksaan'],
                             'referring_physician' => $r['dokter_perujuk'],
                             'clinical_notes' => $r['diagnosa_klinis'] . ($r['informasi_tambahan'] ? ' - ' . $r['informasi_tambahan'] : ''),
+                            'clinical_diagnosis' => $clinicalDiag,
+                            'icd10_code' => $r['kd_penyakit'] ?? null,
+                            'icd10_name' => $r['nm_penyakit'] ?? null,
                             'order_date' => ($r['tgl_permintaan'] ?? now()->toDateString()) . ' ' . ($r['jam_permintaan'] ?? '08:00:00')
                         ];
                     }
@@ -623,7 +650,7 @@ class IntegrationController extends Controller
             }
         }
 
-        // If no live SIMRS data was retrieved, generate realistic hospital order data
+        // If no live SIMRS data was retrieved, generate realistic hospital order data with clinical diagnosis & ICD-10
         if (empty($rawOrders)) {
             $today = now()->format('Y-m-d');
             $rawOrders = [
@@ -639,6 +666,9 @@ class IntegrationController extends Controller
                     'requested_procedure' => 'Foto Thorax AP/Lat',
                     'referring_physician' => 'dr. Budi Santoso, Sp.PD',
                     'clinical_notes' => 'Batuk kronis > 2 minggu, febris, suspek TB Paru aktif',
+                    'clinical_diagnosis' => 'Batuk produktif > 2 minggu, febris malam hari, suspek TB Paru aktif',
+                    'icd10_code' => 'A15.0',
+                    'icd10_name' => 'Tuberculosis of lung, confirmed by sputum microscopy',
                     'order_date' => now()->subMinutes(45)->toDateTimeString(),
                 ],
                 [
@@ -652,7 +682,10 @@ class IntegrationController extends Controller
                     'order_number' => 'RAD-' . date('Ymd') . '-002',
                     'requested_procedure' => 'CT Scan Kepala Non-Kontras',
                     'referring_physician' => 'dr. Anita Rahma, Sp.S',
-                    'clinical_notes' => 'Cephalea kronis berulang, riwayat trauma kepala ringan',
+                    'clinical_notes' => 'Cephalea kronis berulang pasca KLL, riwayat penurunan kesadaran',
+                    'clinical_diagnosis' => 'Cephalea kronis berulang, riwayat trauma kapitis ringan post KLL',
+                    'icd10_code' => 'S06.0',
+                    'icd10_name' => 'Concussion / Traumatic brain injury',
                     'order_date' => now()->subMinutes(30)->toDateTimeString(),
                 ],
                 [
@@ -667,6 +700,9 @@ class IntegrationController extends Controller
                     'requested_procedure' => 'Foto Genu Dextra AP/Lat',
                     'referring_physician' => 'dr. Farhan, Sp.OT',
                     'clinical_notes' => 'Nyeri lutut kanan pasca cedera sepak bola, suspek fraktur/sprain',
+                    'clinical_diagnosis' => 'Nyeri tekan akut dan edema genu dextra pasca cedera olahraga',
+                    'icd10_code' => 'S83.5',
+                    'icd10_name' => 'Sprain and strain involving anterior cruciate ligament of knee',
                     'order_date' => now()->subMinutes(20)->toDateTimeString(),
                 ],
                 [
@@ -681,6 +717,9 @@ class IntegrationController extends Controller
                     'requested_procedure' => 'USG Abdomen Upper/Lower',
                     'referring_physician' => 'dr. Maya Indriati, Sp.PD-KGEH',
                     'clinical_notes' => 'Nyeri perut kanan atas hilang timbul, mual, suspek cholelithiasis',
+                    'clinical_diagnosis' => 'Colic abdomen kuadran kanan atas postprandial, suspek cholelithiasis',
+                    'icd10_code' => 'K80.2',
+                    'icd10_name' => 'Calculus of gallbladder without cholecystitis',
                     'order_date' => now()->subMinutes(10)->toDateTimeString(),
                 ]
             ];
@@ -701,6 +740,9 @@ class IntegrationController extends Controller
             if (!empty($item['requested_procedure'])) $patient->requested_procedure = $item['requested_procedure'];
             if (!empty($item['referring_physician'])) $patient->referring_physician = $item['referring_physician'];
             if (!empty($item['clinical_notes'])) $patient->clinical_notes = $item['clinical_notes'];
+            if (!empty($item['clinical_diagnosis'])) $patient->clinical_diagnosis = $item['clinical_diagnosis'];
+            if (!empty($item['icd10_code'])) $patient->icd10_code = $item['icd10_code'];
+            if (!empty($item['icd10_name'])) $patient->icd10_name = $item['icd10_name'];
             if (!empty($item['order_date'])) $patient->order_date = $item['order_date'];
 
             // Set order status based on studies existence
@@ -725,6 +767,9 @@ class IntegrationController extends Controller
                 'ihs_id' => $patient->satusehat_ihs_id,
                 'procedure' => $patient->requested_procedure,
                 'order_number' => $patient->order_number,
+                'clinical_diagnosis' => $patient->clinical_diagnosis,
+                'icd10_code' => $patient->icd10_code,
+                'icd10_name' => $patient->icd10_name,
                 'status' => $patient->order_status,
             ];
         }
@@ -1088,6 +1133,31 @@ class IntegrationController extends Controller
             ],
             'series' => $seriesList,
         ];
+
+        // Reason Code (Clinical Indication & ICD-10) for SATUSEHAT FHIR R4
+        if (!empty($patient->icd10_code) || !empty($patient->clinical_diagnosis) || !empty($patient->clinical_notes)) {
+            $reasonCoding = [];
+            if (!empty($patient->icd10_code)) {
+                $reasonCoding[] = [
+                    'system' => 'http://hl7.org/fhir/sid/icd-10',
+                    'code' => $patient->icd10_code,
+                    'display' => $patient->icd10_name ?: ($patient->clinical_diagnosis ?: 'Diagnosa Klinis'),
+                ];
+            } else {
+                $reasonCoding[] = [
+                    'system' => 'http://hl7.org/fhir/sid/icd-10',
+                    'code' => 'R69',
+                    'display' => 'Illness, unspecified',
+                ];
+            }
+            $reasonText = $patient->clinical_diagnosis ?: ($patient->clinical_notes ?: ($patient->icd10_name ?: 'Pemeriksaan Radiologi'));
+            $payload['reasonCode'] = [
+                [
+                    'coding' => $reasonCoding,
+                    'text' => $reasonText,
+                ]
+            ];
+        }
 
         return [
             'payload' => $payload,

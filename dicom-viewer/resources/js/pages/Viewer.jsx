@@ -25,7 +25,9 @@ import {
   Printer,
   Users,
   ArrowRight,
-  Monitor
+  Monitor,
+  Stethoscope,
+  ClipboardPlus
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import PdfTemplate from '../components/PdfTemplate';
@@ -521,6 +523,29 @@ export default function Viewer() {
     setShowAiModal(false);
   };
 
+  const handleInsertClinicalDiagnosis = () => {
+    if (!patientData) return;
+    const diagText = patientData.clinical_diagnosis || patientData.clinical_notes || '';
+    const icdText = patientData.icd10_code ? ` (ICD-10: ${patientData.icd10_code}${patientData.icd10_name ? ' - ' + patientData.icd10_name : ''})` : '';
+    const refDoc = patientData.referring_physician ? `Dokter Perujuk: ${patientData.referring_physician}` : '';
+
+    let snippet = `INDIKASI KLINIS / DIAGNOSA:\n- ${diagText}${icdText}`;
+    if (refDoc) snippet += `\n- ${refDoc}`;
+    snippet += '\n\n';
+
+    if (!report || report.trim() === '') {
+      setReport(snippet);
+    } else if (!report.includes('INDIKASI KLINIS') && !report.includes(diagText)) {
+      setReport(snippet + report);
+    } else {
+      setMessage({ type: 'success', text: 'Indikasi klinis sudah tercantum dalam ekspertise.' });
+      setTimeout(() => setMessage({ type: '', text: '' }), 3500);
+      return;
+    }
+    setMessage({ type: 'success', text: 'Diagnosa klinis SIMRS berhasil disisipkan ke lembar ekspertise!' });
+    setTimeout(() => setMessage({ type: '', text: '' }), 3500);
+  };
+
   return (
     <div className="flex-1 flex flex-col md:flex-row bg-[#000] text-white h-full overflow-hidden relative">
 
@@ -636,15 +661,66 @@ export default function Viewer() {
               </h3>
             </div>
             {patientData && (
-              <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-[#aaa]">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="font-bold text-white truncate max-w-[200px]">{patientData.name}</span>
-                  <span className="text-[#00e5ff] font-mono">{patientData.medical_record_number}</span>
+              <div className="space-y-2.5">
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-[#aaa]">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-bold text-white truncate max-w-[200px]">{patientData.name}</span>
+                    <span className="text-[#00e5ff] font-mono">{patientData.medical_record_number}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[#888]">
+                    <span>{relatedFiles.length > 1 ? `${relatedFiles.length} Pemeriksaan dalam 1 Ekspertise` : '1 Pemeriksaan DICOM'}</span>
+                    <span>{patientData.birth_date}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center text-[#888]">
-                  <span>{relatedFiles.length > 1 ? `${relatedFiles.length} Pemeriksaan dalam 1 Ekspertise` : '1 Pemeriksaan DICOM'}</span>
-                  <span>{patientData.birth_date}</span>
-                </div>
+
+                {/* Acuan Diagnosa SIMRS / Indikasi Klinis Card */}
+                {(patientData.clinical_diagnosis || patientData.clinical_notes || patientData.icd10_code) && (
+                  <div className="bg-gradient-to-br from-amber-500/10 via-slate-900/40 to-sky-500/5 border border-amber-500/30 rounded-xl p-3 text-xs shadow-md">
+                    <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                      <div className="flex items-center gap-1.5 text-amber-300 font-bold">
+                        <Stethoscope className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span className="text-[11px] uppercase tracking-wider">Acuan Diagnosa SIMRS</span>
+                      </div>
+                      {patientData.icd10_code && (
+                        <span 
+                          className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-200 border border-amber-500/40 font-bold"
+                          title={patientData.icd10_name || 'Kode ICD-10'}
+                        >
+                          ICD-10: {patientData.icd10_code}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-slate-200 font-medium text-[11px] leading-relaxed mb-2 bg-black/40 p-2.5 rounded-lg border border-white/5">
+                      <div className="text-white font-semibold">
+                        {patientData.clinical_diagnosis || patientData.clinical_notes}
+                      </div>
+                      {patientData.icd10_name && patientData.icd10_name !== patientData.clinical_diagnosis && (
+                        <div className="text-slate-400 text-[10px] mt-1 italic">
+                          {patientData.icd10_name}
+                        </div>
+                      )}
+                      {patientData.referring_physician && (
+                        <div className="text-[10px] text-sky-300 mt-1.5 flex items-center gap-1">
+                          <span className="text-slate-400">Dokter Perujuk:</span>
+                          <span className="font-semibold">{patientData.referring_physician}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {can('reports.create') && uuid && (!reportData?.is_verified || !isLocked) && (
+                      <button
+                        type="button"
+                        onClick={handleInsertClinicalDiagnosis}
+                        className="w-full py-1.5 px-2.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 hover:text-amber-100 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-98"
+                        title="Sisipkan diagnosa dan indikasi klinis ini langsung ke bagian atas ekspertise dokter"
+                      >
+                        <ClipboardPlus className="w-3.5 h-3.5" />
+                        <span>📋 Sisipkan ke Lembar Ekspertise</span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
