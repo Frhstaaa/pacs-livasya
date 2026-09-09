@@ -39,7 +39,13 @@ class ReportTemplateController extends Controller
 
         $templates = $query->orderBy('is_favorite', 'desc')
                            ->orderBy('title', 'asc')
-                           ->get();
+                           ->get()
+                           ->map(function ($t) {
+                               $t->is_system = is_null($t->doctor_id);
+                               // Compatibility mapping for frontend
+                               $t->findings = $t->content;
+                               return $t;
+                           });
 
         // Get unique categories for filter tabs
         $categories = ReportTemplate::availableFor($doctorId)
@@ -58,6 +64,15 @@ class ReportTemplateController extends Controller
      */
     public function store(Request $request)
     {
+        $content = $request->content;
+        if (empty($content) && $request->filled('findings')) {
+            $content = trim($request->findings);
+            if ($request->filled('conclusion') && trim($request->conclusion)) {
+                $content .= "\n\nKESIMPULAN:\n" . trim($request->conclusion);
+            }
+        }
+        $request->merge(['content' => $content]);
+
         $request->validate([
             'title' => 'required|string|max:255',
             'modality' => 'required|string|max:16',
@@ -71,9 +86,12 @@ class ReportTemplateController extends Controller
             'title' => $request->title,
             'modality' => strtoupper($request->modality),
             'category' => $request->category ?: 'Umum',
-            'content' => $request->content,
+            'content' => $content,
             'is_favorite' => $request->boolean('is_favorite', false),
         ]);
+
+        $template->is_system = is_null($template->doctor_id);
+        $template->findings = $template->content;
 
         return response()->json([
             'message' => 'Template ekspertise berhasil disimpan!',
@@ -93,6 +111,15 @@ class ReportTemplateController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
+        $content = $request->content;
+        if (empty($content) && $request->filled('findings')) {
+            $content = trim($request->findings);
+            if ($request->filled('conclusion') && trim($request->conclusion)) {
+                $content .= "\n\nKESIMPULAN:\n" . trim($request->conclusion);
+            }
+            $request->merge(['content' => $content]);
+        }
+
         $request->validate([
             'title' => 'sometimes|string|max:255',
             'modality' => 'sometimes|string|max:16',
@@ -102,6 +129,8 @@ class ReportTemplateController extends Controller
         ]);
 
         $template->update($request->only(['title', 'modality', 'category', 'content', 'is_favorite']));
+        $template->is_system = is_null($template->doctor_id);
+        $template->findings = $template->content;
 
         return response()->json([
             'message' => 'Template berhasil diperbarui',

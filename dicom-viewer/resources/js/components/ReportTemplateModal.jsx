@@ -106,22 +106,38 @@ export default function ReportTemplateModal({
 
   const handleSaveNewTemplate = async (e) => {
     e.preventDefault();
-    if (!formData.title.trim() || !formData.findings.trim()) {
-      setStatusMessage({ type: 'error', text: 'Judul dan temuan wajib diisi.' });
+    const rawContent = (formData.content || formData.findings || '').trim();
+    if (!formData.title.trim() || !rawContent) {
+      setStatusMessage({ type: 'error', text: 'Judul dan uraian temuan template wajib diisi.' });
       return;
     }
 
     setIsSaving(true);
     setStatusMessage({ type: '', text: '' });
     try {
-      const res = await axios.post('/report-templates', formData);
-      setTemplates([res.data.template, ...templates]);
-      setSelectedTemplate(res.data.template);
+      let finalContent = rawContent;
+      if (formData.conclusion && formData.conclusion.trim() && !finalContent.includes(formData.conclusion.trim())) {
+        finalContent += `\n\nKESIMPULAN:\n${formData.conclusion.trim()}`;
+      }
+
+      const res = await axios.post('/report-templates', {
+        title: formData.title.trim(),
+        modality: formData.modality,
+        category: formData.category ? formData.category.trim() : 'Umum',
+        content: finalContent,
+        findings: rawContent,
+        conclusion: formData.conclusion ? formData.conclusion.trim() : ''
+      });
+
+      const newT = res.data.template;
+      setTemplates(prev => [newT, ...prev]);
+      setSelectedTemplate(newT);
       setActiveTab('browse');
       setStatusMessage({ type: 'success', text: 'Template baru berhasil disimpan!' });
       setTimeout(() => setStatusMessage({ type: '', text: '' }), 3000);
     } catch (err) {
-      setStatusMessage({ type: 'error', text: 'Gagal menyimpan template.' });
+      setStatusMessage({ type: 'error', text: 'Gagal menyimpan template: ' + (err.response?.data?.message || err.message) });
+      setTimeout(() => setStatusMessage({ type: '', text: '' }), 4000);
     } finally {
       setIsSaving(false);
     }
@@ -130,10 +146,21 @@ export default function ReportTemplateModal({
   const handleApply = (mode = 'replace') => {
     if (!selectedTemplate) return;
     
-    // Combine findings and conclusion if present
-    let formattedText = selectedTemplate.findings.trim();
-    if (selectedTemplate.conclusion && selectedTemplate.conclusion.trim()) {
-      formattedText += `\n\nKESIMPULAN:\n${selectedTemplate.conclusion.trim()}`;
+    // Combine content or findings + conclusion if present
+    let formattedText = '';
+    if (selectedTemplate.content && selectedTemplate.content.trim()) {
+      formattedText = selectedTemplate.content.trim();
+    } else if (selectedTemplate.findings && selectedTemplate.findings.trim()) {
+      formattedText = selectedTemplate.findings.trim();
+      if (selectedTemplate.conclusion && selectedTemplate.conclusion.trim() && !formattedText.includes(selectedTemplate.conclusion.trim())) {
+        formattedText += `\n\nKESIMPULAN:\n${selectedTemplate.conclusion.trim()}`;
+      }
+    }
+
+    if (!formattedText) {
+      setStatusMessage({ type: 'error', text: 'Isi format template kosong.' });
+      setTimeout(() => setStatusMessage({ type: '', text: '' }), 3000);
+      return;
     }
 
     onSelectTemplate(formattedText, mode);
@@ -142,11 +169,17 @@ export default function ReportTemplateModal({
 
   // Filter templates
   const filteredTemplates = templates.filter(t => {
-    const matchesQuery = !searchQuery || 
-      t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.findings.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (t.conclusion && t.conclusion.toLowerCase().includes(searchQuery.toLowerCase()));
+    const q = (searchQuery || '').toLowerCase();
+    const textContent = (t.content || t.findings || '').toLowerCase();
+    const conclusionText = (t.conclusion || '').toLowerCase();
+    const titleText = (t.title || '').toLowerCase();
+    const categoryText = (t.category || '').toLowerCase();
+
+    const matchesQuery = !q || 
+      titleText.includes(q) ||
+      categoryText.includes(q) ||
+      textContent.includes(q) ||
+      conclusionText.includes(q);
 
     const matchesModality = selectedModality === 'ALL' || t.modality === selectedModality;
     const matchesCategory = selectedCategory === 'ALL' || t.category === selectedCategory;
@@ -325,7 +358,7 @@ export default function ReportTemplateModal({
                             <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-white/5 text-[#aaa] border border-white/10">
                               {t.category}
                             </span>
-                            {t.is_system && (
+                            {(t.is_system || !t.doctor_id) && (
                               <span className="text-[9px] font-semibold text-[#666] uppercase tracking-wider">
                                 Standar
                               </span>
@@ -345,7 +378,7 @@ export default function ReportTemplateModal({
                               <Star className="w-4 h-4" fill={t.is_favorite ? 'currentColor' : 'none'} />
                             </button>
 
-                            {!t.is_system && (
+                            {(!t.is_system && Boolean(t.doctor_id)) && (
                               <button
                                 onClick={(e) => handleDeleteTemplate(e, t.id)}
                                 className="p-1 rounded-lg text-[#555] hover:text-rose-400 opacity-60 group-hover:opacity-100 transition-colors"
@@ -363,8 +396,8 @@ export default function ReportTemplateModal({
                           {t.title}
                         </h4>
 
-                        <p className="text-[11px] text-[#777] line-clamp-2 leading-relaxed">
-                          {t.findings}
+                        <p className="text-[11px] text-[#777] line-clamp-2 leading-relaxed font-mono">
+                          {t.content || t.findings || '-'}
                         </p>
                       </div>
                     );
@@ -387,7 +420,7 @@ export default function ReportTemplateModal({
                         <span className="text-xs font-semibold px-2.5 py-0.5 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30">
                           {selectedTemplate.category}
                         </span>
-                        {selectedTemplate.is_system ? (
+                        {(selectedTemplate.is_system || !selectedTemplate.doctor_id) ? (
                           <span className="text-xs text-[#777]">Template Standar RSIA Livasya</span>
                         ) : (
                           <span className="text-xs text-emerald-400 flex items-center gap-1">
@@ -402,7 +435,7 @@ export default function ReportTemplateModal({
                       onClick={(e) => handleToggleFavorite(e, selectedTemplate.id)}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
                         selectedTemplate.is_favorite
-                          ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                            ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
                           : 'bg-white/5 border-white/10 text-[#888] hover:text-white'
                       }`}
                     >
@@ -415,14 +448,14 @@ export default function ReportTemplateModal({
                   <div className="flex-1 p-6 overflow-y-auto space-y-5 text-sm">
                     <div>
                       <label className="block text-xs font-bold text-[#888] uppercase tracking-wider mb-2">
-                        Deskripsi Temuan (Findings)
+                        Format Teks Ekspertise Baku (Findings &amp; Kesan)
                       </label>
-                      <div className="p-4 rounded-2xl bg-black/40 border border-white/10 font-mono text-xs leading-relaxed text-[#ddd] whitespace-pre-wrap select-text">
-                        {selectedTemplate.findings}
+                      <div className="p-4 rounded-2xl bg-black/40 border border-white/10 font-mono text-xs leading-relaxed text-[#ddd] whitespace-pre-wrap select-text max-h-[380px] overflow-y-auto">
+                        {selectedTemplate.content || selectedTemplate.findings || 'Template tidak memiliki teks temuan.'}
                       </div>
                     </div>
 
-                    {selectedTemplate.conclusion && (
+                    {selectedTemplate.conclusion && !selectedTemplate.content?.includes(selectedTemplate.conclusion) && (
                       <div>
                         <label className="block text-xs font-bold text-[#888] uppercase tracking-wider mb-2">
                           Kesimpulan (Conclusion)

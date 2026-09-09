@@ -472,12 +472,15 @@ export default function Viewer() {
 
   // Structured Template Selection
   const handleSelectTemplate = (templateContent, mode = 'replace') => {
+    if (!templateContent) return;
     if (mode === 'replace') {
       setReport(templateContent);
     } else {
       setReport(prev => prev ? (prev.trim() + '\n\n' + templateContent.trim()) : templateContent);
     }
     setInterimVoice('');
+    setMessage({ type: 'success', text: `Template ekspertise medis berhasil ${mode === 'replace' ? 'diterapkan' : 'disisipkan'}!` });
+    setTimeout(() => setMessage({ type: '', text: '' }), 3500);
   };
 
 
