@@ -17,13 +17,17 @@ class Report extends Model
         'verified_at',
         'verification_token',
         'satusehat_report_id',
-        'satusehat_report_synced_at'
+        'satusehat_report_synced_at',
+        'simrs_sync_status',
+        'simrs_synced_at',
+        'simrs_response',
     ];
 
     protected $casts = [
         'is_verified' => 'boolean',
         'verified_at' => 'datetime',
         'satusehat_report_synced_at' => 'datetime',
+        'simrs_synced_at' => 'datetime',
     ];
 
     public function dicomFile()

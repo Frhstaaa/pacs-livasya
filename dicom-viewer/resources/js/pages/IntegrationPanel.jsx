@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Network, Server, ShieldCheck, CheckCircle2, AlertTriangle, 
-  RefreshCw, Save, Eye, EyeOff, ExternalLink, ArrowRight, 
+  RefreshCw, Save, Eye, EyeOff, ExternalLink, ArrowRight, ArrowLeftRight,
   Activity, Database, Globe, Layers, Copy, Check, FileText,
   Clock, Send, Code, AlertCircle, Search, Sliders, ChevronRight,
   User, CheckCircle, UploadCloud, FileCheck, X
@@ -21,6 +21,13 @@ export default function IntegrationPanel() {
   const [simrsTestResult, setSimrsTestResult] = useState(null);
   const [syncingOrders, setSyncingOrders] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
+
+  // SIMRS 2-Way Bridging Test & Webhook states
+  const [testingPushResult, setTestingPushResult] = useState(false);
+  const [pushTestResult, setPushTestResult] = useState(null);
+  const [showWebhookDoc, setShowWebhookDoc] = useState(false);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
+  const [copiedSampleJson, setCopiedSampleJson] = useState(false);
 
   // Dispatcher & DICOM SatuSehat State
   const [dispatcherPatients, setDispatcherPatients] = useState([]);
@@ -266,6 +273,26 @@ export default function IntegrationPanel() {
       setSyncResult({ success: false, message: 'Gagal sinkronisasi order: ' + (err.response?.data?.message || err.message) });
     } finally {
       setSyncingOrders(false);
+    }
+  };
+
+  // Test Push Outbound Result to SIMRS
+  const handleTestSimrsPush = async () => {
+    setTestingPushResult(true);
+    setPushTestResult(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post('/integration/simrs/test-push', {}, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      setPushTestResult({ success: true, data: res.data });
+    } catch (err) {
+      setPushTestResult({ 
+        success: false, 
+        data: err.response?.data || { message: err.message } 
+      });
+    } finally {
+      setTestingPushResult(false);
     }
   };
 
@@ -1161,7 +1188,202 @@ export default function IntegrationPanel() {
               </label>
             </div>
 
-            {/* Test Results Alert */}
+            {/* Architecture Card: Two-Way Bridging (SIMRS <-> PACS/RIS) */}
+            <div className="bg-[#111827] border border-slate-800 rounded-2xl p-5 relative overflow-hidden">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-800/80">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                    <ArrowLeftRight className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      Topologi Interoperabilitas 2 Arah (Two-Way Bridging)
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                        Bi-Directional Sync
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Alur pertukaran data otomatis antara SIMRS Rumah Sakit dan PACS/RIS Radiologi.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-slate-400 text-[11px]">Protokol:</span>
+                  <span className="px-2 py-0.5 rounded bg-slate-800 text-sky-300 font-mono text-[11px] border border-slate-700">REST API</span>
+                  <span className="text-slate-600">&bull;</span>
+                  <span className="px-2 py-0.5 rounded bg-slate-800 text-emerald-300 font-mono text-[11px] border border-slate-700">Khanza SQL</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Arah 1: SIMRS -> RIS (Inbound Orders) */}
+                <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-extrabold uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-sky-400"></span>
+                        Arah 1: SIMRS &rarr; PACS/RIS (Inbound Order)
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">
+                        Order &amp; Pasien
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed mb-3">
+                      Penerimaan order radiologi langsung dari SIMRS tanpa input ulang di meja radiologi:
+                    </p>
+                    <ul className="text-xs text-slate-400 space-y-1.5 list-disc list-inside">
+                      <li>Data demografi pasien lengkap (No. RM, NIK KTP, Nama, Tgl Lahir)</li>
+                      <li>Nomor order, dokter perujuk, dan unit/poli asal</li>
+                      <li><strong>Diagnosa klinis &amp; kode ICD-10</strong> sebagai acuan dokter radiolog</li>
+                      <li>Tersedia via <strong>Polling Terjadwal</strong> atau <strong>Webhook Realtime</strong></li>
+                    </ul>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500">Kesiapan Citra:</span>
+                    <span className="text-sky-300 font-medium">Unggah DICOM / DICOM Router</span>
+                  </div>
+                </div>
+
+                {/* Arah 2: RIS -> SIMRS (Outbound Results) */}
+                <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                        Arah 2: PACS/RIS &rarr; SIMRS (Outbound Hasil)
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                        Ekspertise &amp; OHIF Link
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed mb-3">
+                      Pengiriman hasil ekspertise dokter radiolog kembali ke Rekam Medis Elektronik (RME):
+                    </p>
+                    <ul className="text-xs text-slate-400 space-y-1.5 list-disc list-inside">
+                      <li>Deskripsi temuan klinis &amp; kesimpulan akhir dokter radiolog</li>
+                      <li>Token tanda tangan digital resmi &amp; verifikasi keabsahan</li>
+                      <li><strong>Tautan OHIF Web Viewer</strong> (dokter klinisi SIMRS dapat melihat citra 1-klik)</li>
+                      <li>Status order otomatis diperbarui menjadi &lsquo;Selesai / Sudah&rsquo;</li>
+                    </ul>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500">Pemicu Kirim:</span>
+                    <span className="text-emerald-300 font-medium">Otomatis saat TTD &amp; Manual Push</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Inbound Webhook Endpoint Box (For Hospital IT Integration) */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-[#111827] border border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-bold text-white flex items-center gap-2">
+                    <Code className="w-4 h-4 text-sky-400" />
+                    <span>Inbound Webhook SIMRS (Push Order Radiologi Real-time)</span>
+                    <span className="text-[10px] font-bold px-2 py-0.2 rounded bg-sky-500/15 border border-sky-500/30 text-sky-300">
+                      POST Endpoint
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Berikan URL endpoint ini kepada tim IT / Vendor SIMRS agar SIMRS dapat mengirimkan order secara langsung seketika pasien didaftarkan.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = `${window.location.origin}/api/simrs/orders`;
+                      navigator.clipboard.writeText(url);
+                      setCopiedWebhook(true);
+                      setTimeout(() => setCopiedWebhook(false), 2500);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {copiedWebhook ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedWebhook ? 'Tersalin!' : 'Salin Webhook URL'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowWebhookDoc(!showWebhookDoc)}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{showWebhookDoc ? 'Tutup Spesifikasi' : 'Spesifikasi JSON'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-3 font-mono text-xs text-sky-300 bg-slate-950/80 px-3.5 py-2 rounded-xl border border-slate-800/80 select-all break-all">
+                {window.location.origin}/api/simrs/orders
+              </div>
+
+              {/* Collapsible JSON Specification */}
+              {showWebhookDoc && (
+                <div className="mt-4 p-4 rounded-xl bg-black/50 border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-300">Contoh Format Payload JSON Request dari SIMRS:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sample = JSON.stringify({
+                          "order_number": "ORD-2026-0098",
+                          "medical_record_number": "RM-44210",
+                          "patient_name": "Ny. Siti Rahmawati",
+                          "nik": "3201234567890001",
+                          "birth_date": "1988-04-12",
+                          "gender": "female",
+                          "address": "Jl. Flamboyan No. 12",
+                          "phone": "081234567890",
+                          "modality": "DX",
+                          "procedure_name": "Thorax AP/PA",
+                          "referring_doctor": "dr. Bambang Sp.P",
+                          "clinical_diagnosis": "Batuk kronis berdahak, suspect TB Paru",
+                          "icd10_code": "A15.0",
+                          "notes": "Foto rontgen dada posisi PA tegak"
+                        }, null, 2);
+                        navigator.clipboard.writeText(sample);
+                        setCopiedSampleJson(true);
+                        setTimeout(() => setCopiedSampleJson(false), 2500);
+                      }}
+                      className="text-[11px] text-sky-400 hover:text-sky-300 flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedSampleJson ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedSampleJson ? 'Tersalin!' : 'Salin JSON Sample'}</span>
+                    </button>
+                  </div>
+                  <pre className="text-[11px] font-mono text-slate-300 bg-slate-950 p-3 rounded-lg overflow-x-auto border border-slate-800/80 leading-relaxed">
+{`{
+  "order_number": "ORD-2026-0098",
+  "medical_record_number": "RM-44210",
+  "patient_name": "Ny. Siti Rahmawati",
+  "nik": "3201234567890001",
+  "birth_date": "1988-04-12",
+  "gender": "female",
+  "address": "Jl. Flamboyan No. 12",
+  "phone": "081234567890",
+  "modality": "DX",
+  "procedure_name": "Thorax AP/PA",
+  "referring_doctor": "dr. Bambang Sp.P",
+  "referring_unit": "Poli Paru",
+  "clinical_diagnosis": "Batuk kronis berdahak, suspect TB Paru",
+  "icd10_code": "A15.0",
+  "notes": "Foto rontgen dada posisi PA tegak"
+}`}
+                  </pre>
+                  <p className="text-[11px] text-slate-400">
+                    &bull; Response yang dikembalikan oleh PACS/RIS: <code>{`{ "success": true, "message": "Order berhasil diterima...", "patient_id": 12 }`}</code> (HTTP 200/201).
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Test Results Alert (Ping Gateway) */}
             {simrsTestResult && (
               <div className={`p-4 rounded-2xl border transition-all ${
                 simrsTestResult.success 
@@ -1179,6 +1401,40 @@ export default function IntegrationPanel() {
                     </div>
                   </div>
                   <button onClick={() => setSimrsTestResult(null)} className="text-xs opacity-60 hover:opacity-100 text-white">✕</button>
+                </div>
+              </div>
+            )}
+
+            {/* Test Results Alert (Push Outbound Ekspertise) */}
+            {pushTestResult && (
+              <div className={`p-4 rounded-2xl border transition-all ${
+                pushTestResult.success 
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200' 
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-200'
+              }`}>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-2.5">
+                    {pushTestResult.success ? <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" /> : <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />}
+                    <div className="space-y-1">
+                      <div className="text-xs font-bold">{pushTestResult.data.message}</div>
+                      {pushTestResult.data.patient_name && (
+                        <div className="text-[11px] text-slate-300">
+                          Pasien: <strong className="text-white">{pushTestResult.data.patient_name}</strong> &bull; Order: <span className="font-mono text-sky-300">{pushTestResult.data.order_number || '-'}</span>
+                        </div>
+                      )}
+                      {pushTestResult.data.viewer_url && (
+                        <div className="text-[11px] text-slate-400 break-all">
+                          Link Viewer RME: <a href={pushTestResult.data.viewer_url} target="_blank" rel="noreferrer" className="text-sky-400 underline font-mono">{pushTestResult.data.viewer_url}</a>
+                        </div>
+                      )}
+                      {pushTestResult.data.destination && (
+                        <div className="text-[10px] text-slate-500">
+                          Tujuan: <span className="font-mono text-slate-400">{pushTestResult.data.destination}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <button onClick={() => setPushTestResult(null)} className="text-xs opacity-60 hover:opacity-100 text-white">✕</button>
                 </div>
               </div>
             )}
@@ -1432,6 +1688,17 @@ export default function IntegrationPanel() {
                   >
                     {syncingOrders ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                     <span>{syncingOrders ? 'Menarik Order...' : 'Tarik Order Baru dari SIMRS'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleTestSimrsPush}
+                    disabled={testingPushResult}
+                    className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                    title="Simulasikan pengiriman hasil ekspertise radiologi + link OHIF viewer ke endpoint SIMRS"
+                  >
+                    {testingPushResult ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    <span>{testingPushResult ? 'Mengirim Hasil...' : 'Uji Kirim Hasil ke SIMRS (Outbound)'}</span>
                   </button>
                 </div>
 

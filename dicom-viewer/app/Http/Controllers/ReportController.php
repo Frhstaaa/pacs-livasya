@@ -205,29 +205,12 @@ class ReportController extends Controller
             $simrsEnabled = Setting::where('key', 'simrs_enabled')->value('value') == '1';
             $simrsAutoPush = Setting::where('key', 'simrs_auto_sync_results')->value('value') != '0';
             if ($simrsEnabled && $simrsAutoPush) {
-                IntegrationLog::create([
-                    'system' => 'simrs',
-                    'resource_type' => 'Report_Push',
-                    'endpoint' => (Setting::where('key', 'simrs_base_url')->value('value') ?: 'http://simrs.livasya.local/api') . (Setting::where('key', 'simrs_endpoint_results')->value('value') ?: '/v1/radiology/results'),
-                    'patient_mrn' => $patientMrn,
-                    'patient_name' => $patientName,
-                    'study_instance_uid' => $dicomFile->uuid,
-                    'status' => 'success',
-                    'status_code' => 200,
-                    'latency_ms' => 95,
-                    'request_payload' => json_encode([
-                        'mrn' => $patientMrn,
-                        'patient_name' => $patientName,
-                        'order_number' => $patient ? $patient->order_number : null,
-                        'no_rawat' => $patient ? $patient->satusehat_encounter_id : null,
-                        'verification_token' => $token,
-                        'verified_at' => now()->toIso8601String(),
-                        'doctor_name' => $request->user()->name,
-                        'findings' => $report->content,
-                        'viewer_url' => url('/viewer/' . $dicomFile->uuid),
-                    ], JSON_PRETTY_PRINT),
-                    'response_payload' => json_encode(['status' => 'ok', 'message' => 'Hasil ekspertise tersimpan di Rekam Medis Elektronik (RME) SIMRS'], JSON_PRETTY_PRINT)
-                ]);
+                try {
+                    $integrationController = app(\App\Http\Controllers\IntegrationController::class);
+                    $integrationController->sendReportToSimrs($report->id);
+                } catch (\Throwable $simrsErr) {
+                    \Log::warning('Auto-Push to SIMRS error: ' . $simrsErr->getMessage());
+                }
             }
         } catch (\Throwable $e) {
             \Log::warning('Integration auto-sync error during report verification: ' . $e->getMessage());

@@ -27,7 +27,8 @@ import {
   ArrowRight,
   Monitor,
   Stethoscope,
-  ClipboardPlus
+  ClipboardPlus,
+  Send
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import PdfTemplate from '../components/PdfTemplate';
@@ -48,6 +49,10 @@ export default function Viewer() {
   // Verification & Digital Signature State
   const [isLocked, setIsLocked] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+
+  // SIMRS Sync State
+  const [syncingSimrs, setSyncingSimrs] = useState(false);
+  const [simrsSyncMsg, setSimrsSyncMsg] = useState(null);
   
   // Multi-study / Examination States
   const [relatedFiles, setRelatedFiles] = useState([]);
@@ -428,6 +433,34 @@ export default function Viewer() {
       setMessage({ type: 'error', text: 'Gagal membuka kunci verifikasi.' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Manual Push to SIMRS
+  const handleSendToSimrs = async () => {
+    if (!reportData?.id) return;
+    setSyncingSimrs(true);
+    setSimrsSyncMsg(null);
+    try {
+      const res = await axios.post(`/integration/simrs/send-report/${reportData.id}`);
+      if (res.data.success) {
+        setReportData(prev => ({
+          ...prev,
+          simrs_sync_status: 'synced',
+          simrs_synced_at: res.data.synced_at || new Date().toISOString()
+        }));
+        setSimrsSyncMsg({ type: 'success', text: 'Ekspertise dan tautan OHIF Viewer berhasil dikirim ke SIMRS / RME!' });
+      } else {
+        setSimrsSyncMsg({ type: 'error', text: res.data.message || 'Gagal mengirim hasil ke SIMRS.' });
+      }
+    } catch (err) {
+      setSimrsSyncMsg({ 
+        type: 'error', 
+        text: err.response?.data?.message || 'Gagal terhubung ke Gateway SIMRS.' 
+      });
+    } finally {
+      setSyncingSimrs(false);
+      setTimeout(() => setSimrsSyncMsg(null), 6000);
     }
   };
 
@@ -820,6 +853,49 @@ export default function Viewer() {
                       )
                     )}
                   </div>
+
+                  {/* SIMRS Sync Status Indicator in Banner */}
+                  <div className="mt-2.5 pt-2 border-t border-emerald-500/20 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      <span className="text-slate-400">Bridging SIMRS:</span>
+                      {reportData.simrs_sync_status === 'synced' ? (
+                        <span className="text-emerald-400 font-bold flex items-center gap-1">
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> Tersinkron ke RME SIMRS
+                          {reportData.simrs_synced_at && (
+                            <span className="text-slate-400 font-normal">
+                              ({new Date(reportData.simrs_synced_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })})
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-amber-400 font-medium flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-400" /> Belum Terkirim ke SIMRS
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={handleSendToSimrs}
+                      disabled={syncingSimrs}
+                      className="text-[11px] font-bold text-sky-400 hover:text-sky-300 flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      title="Kirim atau perbarui hasil ke SIMRS sekarang"
+                    >
+                      {syncingSimrs ? <Activity className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                      <span>{syncingSimrs ? 'Mengirim...' : (reportData.simrs_sync_status === 'synced' ? 'Kirim Ulang' : 'Kirim Sekarang')}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* SIMRS Sync Alert Toast */}
+              {simrsSyncMsg && (
+                <div className={`mb-3 p-3 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all ${
+                  simrsSyncMsg.type === 'success'
+                    ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
+                    : 'bg-rose-500/15 border border-rose-500/30 text-rose-300'
+                }`}>
+                  {simrsSyncMsg.type === 'success' ? <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
+                  <span>{simrsSyncMsg.text}</span>
                 </div>
               )}
               
@@ -861,23 +937,39 @@ export default function Viewer() {
                        {can('reports.create') && uuid && (
                 <div className="space-y-2.5">
                   {reportData?.is_verified ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <button 
-                        onClick={handleExportPdf}
-                        disabled={pdfLoading}
-                        className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold py-3.5 px-4 rounded-2xl hover:opacity-95 transition-all flex justify-center items-center shadow-[0_0_20px_rgba(16,185,129,0.3)] text-sm cursor-pointer"
-                      >
-                        <Printer className="w-4 h-4 mr-2" />
-                        {pdfLoading ? 'Menyiapkan...' : 'Cetak Dokumen Resmi'}
-                      </button>
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <button 
+                          onClick={handleExportPdf}
+                          disabled={pdfLoading}
+                          className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold py-3.5 px-4 rounded-2xl hover:opacity-95 transition-all flex justify-center items-center shadow-[0_0_20px_rgba(16,185,129,0.3)] text-sm cursor-pointer"
+                        >
+                          <Printer className="w-4 h-4 mr-2" />
+                          {pdfLoading ? 'Menyiapkan...' : 'Cetak Dokumen Resmi'}
+                        </button>
+
+                        <button 
+                          onClick={handleSendToSimrs}
+                          disabled={syncingSimrs}
+                          className={`w-full font-bold py-3.5 px-4 rounded-2xl transition-all flex justify-center items-center text-sm cursor-pointer ${
+                            reportData?.simrs_sync_status === 'synced'
+                              ? 'bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30'
+                              : 'bg-gradient-to-r from-sky-600 to-indigo-600 hover:opacity-95 text-white shadow-[0_0_20px_rgba(14,165,233,0.3)]'
+                          }`}
+                          title="Kirim atau sinkronkan hasil ekspertise dan tautan OHIF Viewer langsung ke RME SIMRS"
+                        >
+                          {syncingSimrs ? <Activity className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+                          {syncingSimrs ? 'Mengirim ke SIMRS...' : (reportData?.simrs_sync_status === 'synced' ? 'Kirim Ulang ke SIMRS' : 'Kirim ke SIMRS (RME)')}
+                        </button>
+                      </div>
 
                       {can('reports.unverify') && isLocked && (
                         <button 
                           onClick={handleUnverifyReport}
-                          className="w-full bg-white/10 hover:bg-white/15 text-white font-semibold py-3.5 px-4 rounded-2xl transition-all flex justify-center items-center text-sm border border-white/10 cursor-pointer"
+                          className="w-full bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white font-medium py-2.5 px-4 rounded-xl transition-all flex justify-center items-center text-xs border border-white/10 cursor-pointer"
                         >
-                          <Unlock className="w-4 h-4 mr-2 text-amber-400" />
-                          Revisi Hasil
+                          <Unlock className="w-3.5 h-3.5 mr-1.5 text-amber-400" />
+                          Buka Kunci untuk Revisi Hasil
                         </button>
                       )}
                     </div>

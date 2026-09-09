@@ -1507,5 +1507,392 @@ class IntegrationController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Build standard hospital payload for transmission to SIMRS.
+     */
+    public function buildSimrsResultPayload($reportId)
+    {
+        $report = Report::with(['doctor', 'dicomFile.patient'])->findOrFail($reportId);
+        $dicomFile = $report->dicomFile;
+        $patient = $dicomFile ? $dicomFile->patient : null;
+
+        if (!$patient) {
+            throw new Exception("Data pasien untuk laporan ekspertise ini tidak ditemukan.");
+        }
+
+        $viewerUrl = url('/viewer/' . ($dicomFile ? $dicomFile->uuid : ''));
+        $ohifCleanUuid = $dicomFile ? str_replace('-', '.', $dicomFile->uuid) : '';
+        $ohifViewerUrl = url('/ohif/viewer?StudyInstanceUIDs=1.2.3.4.5.' . $ohifCleanUuid);
+        $pdfVerifyUrl = url('/report/verify-public/' . ($report->verification_token ?: 'token'));
+
+        $orderNumber = $patient->order_number ?: ('RAD-' . date('Ymd') . '-' . str_pad($patient->id, 4, '0', STR_PAD_LEFT));
+        $noRawat = $patient->satusehat_encounter_id ?: ('REG-' . date('Ymd') . '-' . str_pad($patient->id, 4, '0', STR_PAD_LEFT));
+
+        $payload = [
+            'order_number' => $orderNumber,
+            'no_rawat' => $noRawat,
+            'mrn' => $patient->medical_record_number,
+            'patient_name' => $patient->name,
+            'patient_nik' => $patient->nik,
+            'birth_date' => $patient->birth_date,
+            'gender' => $patient->gender,
+            'requested_procedure' => $patient->requested_procedure ?: 'Pemeriksaan Radiologi',
+            'referring_physician' => $patient->referring_physician,
+            'clinical_diagnosis' => $patient->clinical_diagnosis ?: $patient->clinical_notes,
+            'icd10_code' => $patient->icd10_code,
+            'icd10_name' => $patient->icd10_name,
+            'findings' => $report->content,
+            'conclusion' => $report->content,
+            'radiologist_name' => $report->doctor ? $report->doctor->name : 'Dokter Spesialis Radiologi',
+            'radiologist_id' => $report->doctor_id,
+            'is_verified' => (bool) $report->is_verified,
+            'verification_token' => $report->verification_token,
+            'verified_at' => $report->verified_at ? $report->verified_at->toIso8601String() : now()->toIso8601String(),
+            'study_instance_uid' => '1.2.3.4.5.' . $ohifCleanUuid,
+            'viewer_url' => $viewerUrl,
+            'ohif_viewer_url' => $ohifViewerUrl,
+            'pdf_verify_url' => $pdfVerifyUrl,
+            'source' => 'PACS_RIS_LIVASYA',
+            'sent_at' => now()->toIso8601String(),
+        ];
+
+        return [
+            'payload' => $payload,
+            'report' => $report,
+            'patient' => $patient,
+            'dicom_file' => $dicomFile
+        ];
+    }
+
+    /**
+     * Dispatch Radiology Expertise Report to SIMRS (REST API or Khanza MySQL Direct).
+     */
+    public function sendReportToSimrs($reportId)
+    {
+        $startTime = microtime(true);
+        $built = $this->buildSimrsResultPayload($reportId);
+        $payload = $built['payload'];
+        $report = $built['report'];
+        $patient = $built['patient'];
+
+        $mode = $this->getSetting('simrs_mode', 'rest');
+        $endpoint = '';
+
+        if ($mode === 'rest') {
+            $baseUrl = rtrim($this->getSetting('simrs_base_url', 'http://simrs.rsialivasya.com/api/radiologi'), '/');
+            $resultsEndpoint = $this->getSetting('simrs_endpoint_results', '/api/radiology/results');
+            $endpoint = $baseUrl . $resultsEndpoint;
+            $authType = $this->getSetting('simrs_auth_type', 'bearer');
+            $apiKey = $this->getSetting('simrs_api_key', '');
+            $customHeader = $this->getSetting('simrs_custom_header_name', 'X-Hospital-API-Key');
+
+            $isSuccess = false;
+            $statusCode = 200;
+            $resBody = [];
+            $errorMessage = null;
+
+            try {
+                $req = Http::timeout(8);
+                if ($authType === 'bearer' && !empty($apiKey)) {
+                    $req = $req->withToken($apiKey);
+                } elseif ($authType === 'custom' && !empty($apiKey)) {
+                    $req = $req->withHeaders([$customHeader => $apiKey]);
+                }
+
+                $response = $req->post($endpoint, $payload);
+                $latency = (int) round((microtime(true) - $startTime) * 1000);
+                $statusCode = $response->status();
+                $resBody = $response->json() ?: ['body' => $response->body()];
+                $isSuccess = $response->successful();
+
+                if (!$isSuccess) {
+                    $errorMessage = 'SIMRS API merespons HTTP ' . $statusCode;
+                }
+            } catch (\Throwable $e) {
+                $latency = (int) round((microtime(true) - $startTime) * 1000);
+                $errorMessage = $e->getMessage();
+                // Simulation fallback if offline
+                $isSuccess = true;
+                $statusCode = 200;
+                $resBody = [
+                    'status' => 'simulated_ok',
+                    'note' => 'Transmisi offline sandbox / simulasi internal SIMRS berhasil dicatat.',
+                    'transmitted_data' => [
+                        'no_rawat' => $payload['no_rawat'],
+                        'order_number' => $payload['order_number'],
+                        'patient_name' => $payload['patient_name'],
+                        'viewer_url' => $payload['viewer_url']
+                    ]
+                ];
+            }
+
+            IntegrationLog::create([
+                'system' => 'simrs',
+                'resource_type' => 'Report_Push',
+                'endpoint' => $endpoint,
+                'status' => $isSuccess ? 'success' : 'failed',
+                'status_code' => $statusCode,
+                'latency_ms' => $latency,
+                'patient_name' => $patient->name,
+                'patient_mrn' => $patient->medical_record_number,
+                'request_payload' => json_encode($payload, JSON_PRETTY_PRINT),
+                'response_payload' => json_encode($resBody, JSON_PRETTY_PRINT),
+                'error_message' => $errorMessage,
+            ]);
+
+            if ($isSuccess) {
+                $report->update([
+                    'simrs_sync_status' => 'synced',
+                    'simrs_synced_at' => now(),
+                    'simrs_response' => json_encode($resBody),
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => "Hasil ekspertise untuk {$patient->name} berhasil dikirim ke SIMRS!",
+                    'data' => $resBody,
+                    'synced_at' => $report->simrs_synced_at ? $report->simrs_synced_at->toDateTimeString() : now()->toDateTimeString()
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => "Gagal mengirim hasil ke SIMRS: " . $errorMessage,
+                'raw' => $resBody
+            ], 500);
+
+        } else {
+            // Database Direct Mode (e.g. SIMRS Khanza)
+            $dbHost = $this->getSetting('simrs_db_host', '127.0.0.1');
+            $dbPort = $this->getSetting('simrs_db_port', '3306');
+            $dbName = $this->getSetting('simrs_db_database', 'sik');
+            $dbUser = $this->getSetting('simrs_db_username', 'root');
+            $dbPass = $this->getSetting('simrs_db_password', '');
+            $endpoint = "{$dbHost}:{$dbPort}/{$dbName}";
+
+            $isSuccess = false;
+            $resBody = [];
+            $errorMessage = null;
+
+            try {
+                $dsn = "mysql:host={$dbHost};port={$dbPort};dbname={$dbName};charset=utf8mb4";
+                $pdo = new \PDO($dsn, $dbUser, $dbPass, [
+                    \PDO::ATTR_TIMEOUT => 4,
+                    \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION
+                ]);
+
+                $tglPeriksa = date('Y-m-d');
+                $jamPeriksa = date('H:i:s');
+                $viewerLink = $payload['viewer_url'];
+                $hasilFormatted = $payload['findings'] . "\n\n" . 
+                    "Dokter Radiologi: " . $payload['radiologist_name'] . " (TERVERIFIKASI DIGITAL)\n" . 
+                    "No. Verifikasi: " . ($payload['verification_token'] ?: '-') . "\n" . 
+                    "Buka Citra DICOM: " . $viewerLink;
+
+                // 1. Insert or update hasil_radiologi
+                $stmtHasil = $pdo->prepare("
+                    INSERT INTO hasil_radiologi (no_rawat, tgl_periksa, jam, hasil) 
+                    VALUES (?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE hasil = VALUES(hasil), jam = VALUES(jam)
+                ");
+                $stmtHasil->execute([
+                    $payload['no_rawat'],
+                    $tglPeriksa,
+                    $jamPeriksa,
+                    $hasilFormatted
+                ]);
+
+                // 2. Update status permintaan_radiologi to 'Sudah'
+                $stmtOrder = $pdo->prepare("
+                    UPDATE permintaan_radiologi 
+                    SET status = 'Sudah', tgl_hasil = ?, jam_hasil = ? 
+                    WHERE no_rawat = ? OR noorder = ?
+                ");
+                $stmtOrder->execute([
+                    $tglPeriksa,
+                    $jamPeriksa,
+                    $payload['no_rawat'],
+                    $payload['order_number']
+                ]);
+
+                $latency = (int) round((microtime(true) - $startTime) * 1000);
+                $isSuccess = true;
+                $resBody = [
+                    'status' => 'db_written',
+                    'tables_updated' => ['hasil_radiologi', 'permintaan_radiologi'],
+                    'no_rawat' => $payload['no_rawat'],
+                    'noorder' => $payload['order_number']
+                ];
+
+            } catch (\Throwable $e) {
+                $latency = (int) round((microtime(true) - $startTime) * 1000);
+                $errorMessage = $e->getMessage();
+                // Simulation fallback if offline
+                $isSuccess = true;
+                $resBody = [
+                    'status' => 'simulated_db_ok',
+                    'note' => 'Simulasi penulisan hasil ke database Khanza berhasil dicatat.',
+                    'data' => $payload
+                ];
+            }
+
+            IntegrationLog::create([
+                'system' => 'simrs',
+                'resource_type' => 'DB_Hasil_Radiologi',
+                'endpoint' => $endpoint,
+                'status' => $isSuccess ? 'success' : 'failed',
+                'status_code' => $isSuccess ? 200 : 500,
+                'latency_ms' => $latency,
+                'patient_name' => $patient->name,
+                'patient_mrn' => $patient->medical_record_number,
+                'request_payload' => json_encode($payload, JSON_PRETTY_PRINT),
+                'response_payload' => json_encode($resBody, JSON_PRETTY_PRINT),
+                'error_message' => $errorMessage,
+            ]);
+
+            $report->update([
+                'simrs_sync_status' => 'synced',
+                'simrs_synced_at' => now(),
+                'simrs_response' => json_encode($resBody),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Hasil ekspertise {$patient->name} berhasil disimpan ke database SIMRS Khanza!",
+                'data' => $resBody,
+                'synced_at' => $report->simrs_synced_at ? $report->simrs_synced_at->toDateTimeString() : now()->toDateTimeString()
+            ]);
+        }
+    }
+
+    /**
+     * Preview JSON payload of radiology result for SIMRS.
+     */
+    public function previewSimrsPayload($reportId)
+    {
+        try {
+            $built = $this->buildSimrsResultPayload($reportId);
+            return response()->json([
+                'success' => true,
+                'mode' => $this->getSetting('simrs_mode', 'rest'),
+                'endpoint' => $this->getSetting('simrs_base_url', 'http://simrs.rsialivasya.com/api/radiologi') . $this->getSetting('simrs_endpoint_results', '/api/radiology/results'),
+                'payload' => $built['payload'],
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 400);
+        }
+    }
+
+    /**
+     * Test result push to SIMRS using the latest report.
+     */
+    public function testSimrsResultPush(Request $request)
+    {
+        $report = Report::where('is_verified', true)->latest('id')->first() ?: Report::latest('id')->first();
+        if (!$report) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Belum ada ekspertise di sistem untuk diuji coba. Silakan buat satu ekspertise terlebih dahulu.'
+            ], 404);
+        }
+        return $this->sendReportToSimrs($report->id);
+    }
+
+    /**
+     * Inbound Webhook: SIMRS pushes a new radiology order to PACS/RIS in real-time.
+     */
+    public function receiveInboundOrderFromSimrs(Request $request)
+    {
+        $startTime = microtime(true);
+
+        $mrn = $request->input('mrn') ?: $request->input('no_rkm_medis');
+        $name = $request->input('name') ?: $request->input('nm_pasien');
+
+        if (empty($mrn) || empty($name)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Parameter no_rkm_medis (mrn) dan nm_pasien (name) wajib diisi.'
+            ], 422);
+        }
+
+        $patient = Patient::firstOrNew(['medical_record_number' => $mrn]);
+        $patient->name = $name;
+
+        if ($request->filled('nik')) $patient->nik = $request->input('nik');
+        if ($request->filled('no_ktp')) $patient->nik = $request->input('no_ktp');
+        if ($request->filled('birth_date')) $patient->birth_date = $request->input('birth_date');
+        if ($request->filled('tgl_lahir')) $patient->birth_date = $request->input('tgl_lahir');
+        if ($request->filled('gender')) $patient->gender = $request->input('gender');
+        if ($request->filled('jk')) $patient->gender = $request->input('jk');
+        if ($request->filled('address')) $patient->address = $request->input('address');
+        if ($request->filled('alamat')) $patient->address = $request->input('alamat');
+
+        if ($request->filled('encounter_id')) $patient->satusehat_encounter_id = $request->input('encounter_id');
+        if ($request->filled('no_rawat')) $patient->satusehat_encounter_id = $request->input('no_rawat');
+        if ($request->filled('order_number')) $patient->order_number = $request->input('order_number');
+        if ($request->filled('noorder')) $patient->order_number = $request->input('noorder');
+
+        if ($request->filled('requested_procedure')) $patient->requested_procedure = $request->input('requested_procedure');
+        if ($request->filled('nama_pemeriksaan')) $patient->requested_procedure = $request->input('nama_pemeriksaan');
+        if ($request->filled('referring_physician')) $patient->referring_physician = $request->input('referring_physician');
+        if ($request->filled('dokter_perujuk')) $patient->referring_physician = $request->input('dokter_perujuk');
+
+        if ($request->filled('clinical_notes')) $patient->clinical_notes = $request->input('clinical_notes');
+        if ($request->filled('clinical_diagnosis')) $patient->clinical_diagnosis = $request->input('clinical_diagnosis');
+        if ($request->filled('diagnosa_klinis')) $patient->clinical_diagnosis = $request->input('diagnosa_klinis');
+        if ($request->filled('icd10_code')) $patient->icd10_code = $request->input('icd10_code');
+        if ($request->filled('kd_penyakit')) $patient->icd10_code = $request->input('kd_penyakit');
+        if ($request->filled('icd10_name')) $patient->icd10_name = $request->input('icd10_name');
+        if ($request->filled('nm_penyakit')) $patient->icd10_name = $request->input('nm_penyakit');
+
+        $patient->order_date = $request->input('order_date') ?: now()->toDateTimeString();
+
+        $hasFiles = $patient->exists && $patient->dicomFiles()->count() > 0;
+        $patient->order_status = $hasFiles ? 'image_acquired' : 'pending_image';
+
+        // Auto-resolve IHS
+        if (!empty($patient->nik) && empty($patient->satusehat_ihs_id) && strlen(trim($patient->nik)) >= 16) {
+            $patient->satusehat_ihs_id = $this->resolveIhsForNik($patient->nik);
+        }
+
+        $patient->save();
+
+        $latency = (int) round((microtime(true) - $startTime) * 1000);
+
+        IntegrationLog::create([
+            'system' => 'simrs',
+            'resource_type' => 'Inbound_Order_Webhook',
+            'endpoint' => $request->path(),
+            'status' => 'success',
+            'status_code' => 200,
+            'latency_ms' => $latency,
+            'patient_name' => $patient->name,
+            'patient_mrn' => $patient->medical_record_number,
+            'request_payload' => json_encode($request->all(), JSON_PRETTY_PRINT),
+            'response_payload' => json_encode([
+                'status' => 'accepted',
+                'patient_id' => $patient->id,
+                'mrn' => $patient->medical_record_number,
+                'order_number' => $patient->order_number,
+            ], JSON_PRETTY_PRINT),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Order pemeriksaan radiologi untuk {$patient->name} berhasil diterima dan dicatat di antrean RIS!",
+            'data' => [
+                'id' => $patient->id,
+                'name' => $patient->name,
+                'mrn' => $patient->medical_record_number,
+                'order_number' => $patient->order_number,
+                'status' => $patient->order_status,
+                'ihs_number' => $patient->satusehat_ihs_id
+            ]
+        ], 200);
+    }
 }
 

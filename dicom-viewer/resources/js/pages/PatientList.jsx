@@ -515,16 +515,25 @@ export default function PatientList() {
                           </span>
                         )}
 
-                        {patient.satusehat_imaging_study_id && (
-                          <div className="mt-1.5">
+                        <div className="mt-1.5 flex flex-col gap-1">
+                          {patient.dicom_files?.some(f => f.report?.simrs_sync_status === 'synced') && (
                             <span 
-                              className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-sky-500/30 text-sky-300 bg-sky-500/15 inline-flex items-center gap-1 shadow-sm"
+                              className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/30 text-emerald-300 bg-emerald-500/15 inline-flex items-center gap-1 shadow-sm w-fit"
+                              title="Hasil ekspertise telah dikirim & tersinkron ke SIMRS (RME Terhubung)"
+                            >
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" /> SIMRS Terhubung
+                            </span>
+                          )}
+
+                          {patient.satusehat_imaging_study_id && (
+                            <span 
+                              className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-sky-500/30 text-sky-300 bg-sky-500/15 inline-flex items-center gap-1 shadow-sm w-fit"
                               title={`SATUSEHAT ImagingStudy ID: ${patient.satusehat_imaging_study_id}`}
                             >
                               <Globe className="w-3 h-3 text-sky-400 shrink-0" /> SATUSEHAT
                             </span>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </td>
 
                       {/* Studi Count */}

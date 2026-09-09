@@ -84,7 +84,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/integration/satusehat/preview-imaging-study/{patientId}', [IntegrationController::class, 'previewImagingStudyPayload'])->middleware('permission:integration.view');
     Route::post('/integration/satusehat/send-imaging-study/{patientId}', [IntegrationController::class, 'sendImagingStudy'])->middleware('permission:integration.manage');
     Route::post('/integration/satusehat/send-diagnostic-report/{patientId}', [IntegrationController::class, 'sendDiagnosticReport'])->middleware('permission:integration.manage');
+
+    // SIMRS 2-Way Bridging (Outbound Results Push & Preview)
+    Route::post('/integration/simrs/send-report/{reportId}', [IntegrationController::class, 'sendReportToSimrs'])->middleware('permission:reports.verify');
+    Route::get('/integration/simrs/preview-report/{reportId}', [IntegrationController::class, 'previewSimrsPayload'])->middleware('permission:integration.view');
+    Route::post('/integration/simrs/test-push', [IntegrationController::class, 'testSimrsResultPush'])->middleware('permission:integration.manage');
 });
+
+// Inbound Webhook: SIMRS pushes new orders directly to RIS in real-time
+Route::post('/simrs/orders', [IntegrationController::class, 'receiveInboundOrderFromSimrs'])->middleware('throttle:60,1');
+Route::post('/integration/simrs/orders', [IntegrationController::class, 'receiveInboundOrderFromSimrs'])->middleware('throttle:60,1');
 
 // Public verification for QR Code scanning on printed reports
 Route::get('/report/verify-public/{token}', [ReportController::class, 'verifyPublic'])->middleware('throttle:30,1');
